@@ -1,0 +1,47 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["../../packages/shared/src/*"],
+      "@rtb/*": ["../../packages/rtb/src/*"], 
+      "@analytics/*": ["../../packages/analytics/src/*"],
+      "@/*": ["src/*"]
+    },
+    "types": [
+      "vite/client",
+      "jest",
+      "@testing-library/jest-dom"
+    ],
+    "jsx": "react-jsx",
+    "lib": [
+      "DOM",
+      "DOM.Iterable", 
+      "ESNext"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "sourceMap": true,
+    "declaration": true
+  },
+  "include": [
+    "src",
+    "tests"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist", 
+    "coverage"
+  ],
+  "references": [
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/rtb" },
+    { "path": "../../packages/analytics" }
+  ]
+}
