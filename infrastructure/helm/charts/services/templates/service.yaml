@@ -1,0 +1,61 @@
+{{/* Service template for Multi-Vertical Insurance Lead Generation Platform */}}
+{{/* Version: 1.0.0 */}}
+{{/* Kubernetes Version: 1.27+ */}}
+
+{{- range $serviceName, $serviceConfig := .Values.services }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $serviceName }}-service
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $serviceName }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/version: {{ $serviceConfig.image.tag | default $.Chart.AppVersion }}
+    app.kubernetes.io/component: {{ $serviceName }}
+    app.kubernetes.io/part-of: insurance-platform
+    helm.sh/chart: {{ printf "%s-%s" $.Chart.Name $.Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+  annotations:
+    {{- if $.Values.global.monitoring.prometheus.scrape }}
+    prometheus.io/scrape: "true"
+    prometheus.io/port: {{ $.Values.global.monitoring.prometheus.port | quote }}
+    prometheus.io/path: {{ $.Values.global.monitoring.prometheus.path | quote }}
+    {{- end }}
+    {{- if $.Values.global.monitoring.jaeger.enabled }}
+    jaeger.io/sampling-rate: {{ $.Values.global.monitoring.jaeger.samplingRate | quote }}
+    jaeger.io/max-traces: {{ $.Values.global.monitoring.jaeger.maxTracesPerSecond | quote }}
+    {{- end }}
+spec:
+  type: {{ $serviceConfig.service.type }}
+  ports:
+    - port: {{ $serviceConfig.service.port }}
+      targetPort: {{ $serviceConfig.service.targetPort }}
+      protocol: TCP
+      name: http
+    {{- if $.Values.global.monitoring.prometheus.scrape }}
+    - port: {{ $.Values.global.monitoring.prometheus.port }}
+      targetPort: {{ $.Values.global.monitoring.prometheus.port }}
+      protocol: TCP
+      name: metrics
+    {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ $serviceName }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+  {{- if eq $serviceConfig.service.type "LoadBalancer" }}
+  externalTrafficPolicy: Local
+  {{- end }}
+  sessionAffinity: {{ $serviceConfig.service.sessionAffinity | default "None" }}
+  {{- if $.Values.global.availability.podAntiAffinity }}
+  topologyKeys:
+    - "kubernetes.io/hostname"
+    - "topology.kubernetes.io/zone"
+    - "topology.kubernetes.io/region"
+  {{- end }}
+  {{- if $.Values.global.security.networkPolicy.enabled }}
+  ipFamilyPolicy: RequireDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+  {{- end }}
+{{- end }}
