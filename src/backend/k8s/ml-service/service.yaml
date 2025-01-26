@@ -1,0 +1,53 @@
+# ML Service Kubernetes Service Manifest
+# Provides internal networking and load balancing for the ML scoring service
+# Version: v1
+# Supports: Real-time lead scoring, quality assessment, and dynamic pricing
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-service
+  namespace: default
+  labels:
+    app: ml-service
+    component: scoring
+    tier: backend
+    version: v1
+  annotations:
+    # Prometheus monitoring configuration
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+    # AWS NLB configuration for optimal performance
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-timeout: "30"
+
+spec:
+  # Using ClusterIP for internal service communication
+  type: ClusterIP
+  
+  # Port configuration for API and metrics endpoints
+  ports:
+    # Main API port for lead scoring and model inference
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http-api
+    
+    # Metrics port for Prometheus monitoring
+    - port: 9090
+      targetPort: 9090
+      protocol: TCP
+      name: http-metrics
+  
+  # Pod selector for service endpoints
+  selector:
+    app: ml-service
+    component: scoring
+  
+  # Session affinity configuration for consistent routing
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hour session timeout
