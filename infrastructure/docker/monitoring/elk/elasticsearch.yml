@@ -1,0 +1,87 @@
+# Elasticsearch configuration for Multi-Vertical Insurance Lead Generation Platform
+# Version: 8.x
+# Purpose: Centralized logging, monitoring and analytics storage
+
+# ---------------------------------- Cluster -----------------------------------
+cluster.name: ${ELASTICSEARCH_CLUSTER_NAME}
+cluster.initial_master_nodes: ["${ELASTICSEARCH_NODE_NAME}"]
+
+# Disk-based shard allocation settings
+cluster.routing.allocation.disk.threshold_enabled: true
+cluster.routing.allocation.disk.watermark.low: "85%"
+cluster.routing.allocation.disk.watermark.high: "90%"
+cluster.routing.allocation.disk.watermark.flood_stage: "95%"
+
+# ------------------------------------ Node ------------------------------------
+node.name: ${ELASTICSEARCH_NODE_NAME}
+node.master: true
+node.data: true
+node.ingest: true
+node.max_local_storage_nodes: 1
+node.attr.box_type: "hot"
+
+# ----------------------------------- Paths -----------------------------------
+path.data: /usr/share/elasticsearch/data
+path.logs: /usr/share/elasticsearch/logs
+
+# ---------------------------------- Network ---------------------------------
+network.host: "0.0.0.0"
+network.port: 9200
+network.publish_host: ${ELASTICSEARCH_PUBLISH_HOST}
+
+# --------------------------------- Discovery --------------------------------
+discovery.seed_hosts: ["${ELASTICSEARCH_SEED_HOSTS}"]
+discovery.type: "single-node"
+
+# ---------------------------------- X-Pack ----------------------------------
+xpack.security.enabled: true
+
+# SSL/TLS Configuration
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: "certificate"
+xpack.security.transport.ssl.keystore.path: "elastic-certificates.p12"
+xpack.security.transport.ssl.truststore.path: "elastic-certificates.p12"
+
+# Authentication Configuration
+xpack.security.authc.realms.native.type: "native"
+xpack.security.authc.realms.native.order: 0
+xpack.security.authc.api_key.enabled: true
+
+# Audit Logging
+xpack.security.audit.enabled: true
+xpack.security.audit.outputs: ["logfile"]
+
+# Monitoring Settings
+xpack.monitoring.enabled: true
+xpack.monitoring.collection.enabled: true
+xpack.monitoring.collection.interval: "10s"
+
+# --------------------------------- Bootstrap --------------------------------
+bootstrap.memory_lock: true
+bootstrap.system_call_filter: true
+
+# ---------------------------------- Indices ---------------------------------
+# Memory and Recovery Settings
+indices.memory.index_buffer_size: "30%"
+indices.recovery.max_bytes_per_sec: "50mb"
+
+# Index Lifecycle Management
+indices.lifecycle.enabled: true
+indices.lifecycle.poll_interval: "1h"
+
+# -------------------------------- Thread Pool ------------------------------
+thread_pool.write.queue_size: 1000
+thread_pool.write.size: 4
+thread_pool.search.queue_size: 1000
+thread_pool.search.size: 8
+thread_pool.get.queue_size: 500
+
+# ----------------------------------- Action --------------------------------
+# Prevent accidental index deletion
+action.destructive_requires_name: true
+action.auto_create_index: false
+
+# ----------------------------------- Search --------------------------------
+# Search request limits
+search.max_buckets: 10000
+search.max_concurrent_shard_requests: 5
