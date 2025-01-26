@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <!-- Character encoding -->
+    <meta charset="UTF-8">
+
+    <!-- Responsive viewport configuration -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, minimum-scale=1.0">
+
+    <!-- Theme color for browser chrome -->
+    <meta name="theme-color" content="#1976D2">
+
+    <!-- Application metadata -->
+    <meta name="description" content="Insurance Lead Generation Platform - Secure buyer portal for campaign management, lead acquisition, and real-time analytics">
+    <meta name="application-name" content="Insurance Lead Portal">
+
+    <!-- iOS specific meta tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <!-- Preconnect to critical domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin="anonymous">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+    <link rel="preconnect" href="https://api.insurance-platform.com">
+
+    <!-- DNS prefetch for API domain -->
+    <link rel="dns-prefetch" href="https://api.insurance-platform.com">
+
+    <!-- Progressive Web App assets -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Optimized font loading -->
+    <link rel="stylesheet" 
+          href="https://fonts.googleapis.com/css2?family=Roboto:wght@400,500,700&display=swap" 
+          media="print" 
+          onload="this.media='all'">
+    <link rel="stylesheet" 
+          href="https://fonts.googleapis.com/icon?family=Material+Icons&display=block">
+
+    <!-- Module preload for main entry point -->
+    <link rel="modulepreload" href="./src/main.tsx">
+
+    <!-- Critical CSS for above-the-fold content -->
+    <style>
+        /* Minimize content shift during load */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #FFFFFF;
+            color: #212121;
+        }
+        #root {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+    </style>
+
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'nonce-${nonce}';
+        style-src 'self' https://fonts.googleapis.com 'nonce-${nonce}';
+        font-src 'self' https://fonts.gstatic.com;
+        img-src 'self' data: https: blob:;
+        connect-src 'self' https://api.*;
+        frame-ancestors 'none';
+        form-action 'self';
+        base-uri 'self';
+        object-src 'none';
+        upgrade-insecure-requests;
+    ">
+
+    <title>Insurance Lead Portal</title>
+</head>
+<body>
+    <!-- Skip links for accessibility -->
+    <a href="#main-content" class="skip-link" style="position: absolute; left: -9999px;">Skip to main content</a>
+    <a href="#main-navigation" class="skip-link" style="position: absolute; left: -9999px;">Skip to navigation</a>
+
+    <!-- Application root with proper ARIA role -->
+    <div id="root" role="application">
+        <div class="loading" role="status" aria-label="Loading application">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <!-- Main application script -->
+    <script type="module" src="./src/main.tsx" nonce="${nonce}"></script>
+
+    <!-- Error handling for script loading -->
+    <script nonce="${nonce}">
+        window.onerror = function(msg, url, line, col, error) {
+            console.error('Script error:', { msg, url, line, col, error });
+            const root = document.getElementById('root');
+            if (root) {
+                root.innerHTML = '<div role="alert"><h1>Application Error</h1><p>Please refresh the page or contact support.</p></div>';
+            }
+            return false;
+        };
+    </script>
+</body>
+</html>
