@@ -1,0 +1,103 @@
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+build
+**/build
+coverage
+**/coverage
+
+# Test files
+tests
+**/tests
+**/*.test.*
+**/*.spec.*
+jest.config.*
+
+# Development configs
+.git
+.gitignore
+.git*
+.husky
+.vscode
+.idea
+.ssh
+.env*
+.eslintrc*
+.prettierrc*
+.npmrc
+
+# Documentation
+*.md
+docs
+**/docs
+
+# Logs and debugging
+*.log
+**/*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Security and sensitive data
+**/secrets
+**/*.key
+**/*.pem
+**/*.cert
+**/*.crt
+
+# System files
+.DS_Store
+**/.DS_Store
+**/*.swp
+**/*~
+Thumbs.db
+
+# Project specific
+.dockerignore
+Dockerfile*
+docker-compose*
+README.md
+
+# TypeScript source maps
+**/*.map
+**/*.tsbuildinfo
+
+# Cache directories
+.npm
+.eslintcache
+.tscache
+.cache
+
+# Editor directories
+.vscode
+.idea
+*.sublime-*
+*.swp
+*.swo
+
+# Temporary files
+tmp
+temp
+.tmp
+.temp
+
+# Linting and formatting
+.eslintrc*
+.prettierrc*
+.stylelintrc*
+.editorconfig
+
+# Test coverage
+coverage
+.nyc_output
+reports
+
+# Miscellaneous
+.git-blame-ignore-revs
+.gitlab-ci.yml
+.travis.yml
+.circleci
+.github
