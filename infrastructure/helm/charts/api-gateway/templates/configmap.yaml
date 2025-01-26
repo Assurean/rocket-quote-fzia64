@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-kong-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}-kong
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  kong.conf: |
+    # Core Configuration
+    proxy_listen = 0.0.0.0:8000, 0.0.0.0:8443 ssl
+    admin_listen = 127.0.0.1:8444 ssl
+    ssl_cipher_suite = intermediate
+    client_max_body_size = 8m
+    proxy_read_timeout = 60s
+    proxy_send_timeout = 60s
+    nginx_worker_processes = auto
+    nginx_worker_connections = 16384
+    upstream_keepalive = 32
+
+    # Plugin Configuration
+    plugins = bundled,jwt,rate-limiting,cors,prometheus,ip-restriction,request-transformer,response-transformer,request-size-limiting
+
+    # Security Settings
+    ssl_protocols = TLSv1.2 TLSv1.3
+    ssl_prefer_server_ciphers = on
+    ssl_session_tickets = off
+    ssl_session_timeout = 1d
+    ssl_buffer_size = 4k
+    
+    # Logging Configuration
+    proxy_access_log = /dev/stdout
+    proxy_error_log = /dev/stderr
+    admin_access_log = /dev/stdout
+    admin_error_log = /dev/stderr
+    log_level = notice
+
+    # Performance Tuning
+    lua_socket_pool_size = 30
+    lua_ssl_verify_depth = 1
+    lua_socket_keepalive_idle_timeout = 60s
+    lua_shared_dict_size = prometheus_metrics=10m
+
+  custom-plugins.conf: |
+    # JWT Authentication Configuration
+    jwt_config:
+      header_names:
+        - Authorization
+      claims_to_verify:
+        - exp
+        - nbf
+      maximum_expiration: 3600
+      secret_is_base64: true
+      run_on_preflight: true
+
+    # Rate Limiting Configuration
+    rate_limiting_config:
+      minute: {{ .Values.config.plugins | get "rate-limiting" "config" "minute" | default 100 }}
+      hour: {{ .Values.config.plugins | get "rate-limiting" "config" "hour" | default 5000 }}
+      policy: redis
+      fault_tolerant: true
+      hide_client_headers: false
+      redis_timeout: 2000
+
+    # CORS Configuration
+    cors_config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+        - PATCH
+      headers:
+        - Content-Type
+        - Authorization
+        - X-Requested-With
+        - X-HTTP-Method-Override
+      exposed_headers:
+        - X-Auth-Token
+        - X-Request-ID
+      max_age: 3600
+      credentials: true
+      preflight_continue: false
+
+    # Prometheus Metrics Configuration
+    prometheus_config:
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true
+      per_consumer_metrics: true
+      shared_dict_metrics: true
+      metric_collection_interval: 5
+      metric_prefix: kong_gateway
+      ping_metrics: true
+      connection_metrics: true
+
+    # IP Restriction Configuration
+    ip_restriction_config:
+      allow:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+      deny: []
+
+    # Request Size Limiting Configuration
+    request_size_limiting_config:
+      allowed_payload_size: 8
+      require_content_length: true
+
+    # Request/Response Transformer Configuration
+    request_transformer_config:
+      add:
+        headers:
+          - X-Request-ID:$(uuid)
+    
+    response_transformer_config:
+      add:
+        headers:
+          - X-Kong-Proxy-Latency:$(kong.proxy_latency)
+          - X-Kong-Upstream-Latency:$(kong.upstream_latency)
