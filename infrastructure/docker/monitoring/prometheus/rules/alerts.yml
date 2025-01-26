@@ -1,0 +1,142 @@
+# Prometheus Alert Rules Configuration
+# Version: 1.0
+# Purpose: Define comprehensive monitoring alerts for the Multi-Vertical Insurance Lead Generation Platform
+
+groups:
+  # Service Availability Monitoring
+  - name: service_availability
+    rules:
+    - alert: ServiceDown
+      expr: up == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Service {{ $labels.job }} is down"
+        description: "Service has been down for more than 5 minutes"
+        runbook_url: "https://wiki.example.com/runbooks/service-down"
+
+    - alert: HighErrorRate
+      expr: job:http_requests_total:error_rate > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate for {{ $labels.job }}"
+        description: "Error rate is above 5% for 5 minutes"
+        runbook_url: "https://wiki.example.com/runbooks/high-error-rate"
+
+  # Performance Monitoring
+  - name: performance_alerts
+    rules:
+    - alert: SlowResponseTime
+      expr: job:http_request_duration_seconds:p95 > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Slow response time for {{ $labels.job }}"
+        description: "95th percentile response time is above 500ms target"
+        runbook_url: "https://wiki.example.com/runbooks/slow-response"
+
+    - alert: HighCPUUsage
+      expr: avg by(instance) (rate(process_cpu_seconds_total[5m])) * 100 > 70
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU usage on {{ $labels.instance }}"
+        description: "CPU usage above 70% for 10 minutes"
+        runbook_url: "https://wiki.example.com/runbooks/high-cpu"
+
+  # Lead Quality Monitoring
+  - name: lead_quality_alerts
+    rules:
+    - alert: LowLeadAcceptanceRate
+      expr: vertical:leads_acceptance_rate:ratio < 0.40
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Low lead acceptance for {{ $labels.vertical }}"
+        description: "Lead acceptance rate below 40% target for 30 minutes"
+        runbook_url: "https://wiki.example.com/runbooks/low-acceptance"
+
+    - alert: LeadQualityDrop
+      expr: vertical:lead_quality_score:avg < 0.60
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Lead quality drop for {{ $labels.vertical }}"
+        description: "Average lead quality score below 60% threshold"
+        runbook_url: "https://wiki.example.com/runbooks/quality-drop"
+
+  # SLA Compliance Monitoring
+  - name: sla_alerts
+    rules:
+    - alert: SLABreachRisk
+      expr: service:availability:ratio < 0.999
+      for: 1h
+      labels:
+        severity: critical
+      annotations:
+        summary: "SLA breach risk for {{ $labels.job }}"
+        description: "Service availability below 99.9% target over 1 hour"
+        runbook_url: "https://wiki.example.com/runbooks/sla-breach"
+
+    - alert: ConcurrentUserThreshold
+      expr: sum(user_sessions_active) > 8000
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High concurrent user load"
+        description: "Active users approaching 10,000 limit (current: {{ $value }})"
+        runbook_url: "https://wiki.example.com/runbooks/high-load"
+
+  # Infrastructure Monitoring
+  - name: infrastructure_alerts
+    rules:
+    - alert: HighMemoryUsage
+      expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage on {{ $labels.instance }}"
+        description: "Memory usage above 85% for 10 minutes"
+        runbook_url: "https://wiki.example.com/runbooks/high-memory"
+
+    - alert: DiskSpaceRunningLow
+      expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes * 100 > 85
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Low disk space on {{ $labels.instance }}"
+        description: "Disk usage above 85% for 15 minutes"
+        runbook_url: "https://wiki.example.com/runbooks/low-disk"
+
+  # API Performance Monitoring
+  - name: api_alerts
+    rules:
+    - alert: APILatencyWarning
+      expr: api_request_duration_seconds{quantile="0.95"} > 0.4
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "API latency warning for {{ $labels.endpoint }}"
+        description: "95th percentile API latency above 400ms warning threshold"
+        runbook_url: "https://wiki.example.com/runbooks/api-latency"
+
+    - alert: APILatencyCritical
+      expr: api_request_duration_seconds{quantile="0.95"} > 0.5
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "API latency critical for {{ $labels.endpoint }}"
+        description: "95th percentile API latency above 500ms critical threshold"
+        runbook_url: "https://wiki.example.com/runbooks/api-latency-critical"
