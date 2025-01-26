@@ -1,0 +1,30 @@
+node_modules
+apps/*/node_modules
+packages/*/node_modules
+
+# Build outputs
+dist
+apps/*/dist
+packages/*/dist
+
+# Test files
+**/*.test.*
+**/__tests__
+**/__mocks__
+coverage
+apps/*/coverage
+packages/*/coverage
+
+# Development files
+.git
+.env*
+*.log
+*.md
+.eslintrc*
+.prettierrc*
+tsconfig*.json
+jest.config.*
+
+# Docker files
+.dockerignore
+Dockerfile*
