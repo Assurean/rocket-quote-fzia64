@@ -1,0 +1,111 @@
+# Kibana server configuration for Multi-Vertical Insurance Lead Generation Platform
+# Version: 8.11.1 (matches Elasticsearch version)
+
+# Server settings
+server.name: ${KIBANA_SERVER_NAME}
+server.host: "0.0.0.0"
+server.port: 5601
+server.basePath: ""
+server.maxPayloadBytes: 1048576
+
+# SSL/TLS Configuration
+server.ssl:
+  enabled: true
+  certificate: "/usr/share/kibana/config/certs/kibana.crt"
+  key: "/usr/share/kibana/config/certs/kibana.key"
+
+# Elasticsearch connection settings
+elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOSTS}"]
+  username: "${ELASTICSEARCH_USERNAME}"
+  password: "${ELASTICSEARCH_PASSWORD}"
+  ssl:
+    enabled: true
+    verificationMode: "certificate"
+    certificateAuthorities: ["/usr/share/kibana/config/certs/ca.crt"]
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  ui:
+    container:
+      elasticsearch:
+        enabled: true
+      logstash:
+        enabled: true
+  kibana:
+    collection:
+      enabled: true
+      interval: 10000  # 10 second collection interval for optimal performance monitoring
+
+# Security settings
+xpack.security:
+  enabled: true
+  encryptionKey: "${KIBANA_ENCRYPTION_KEY}"
+  session:
+    idleTimeout: "1h"
+    lifespan: "24h"
+
+# Reporting configuration
+xpack.reporting:
+  enabled: true
+  capture:
+    maxAttempts: 3
+    timeouts:
+      waitForElements: 5000
+
+# Spaces feature for multi-tenant monitoring
+xpack.spaces:
+  enabled: true
+
+# Logging configuration
+logging:
+  appenders:
+    file:
+      type: file
+      fileName: "/var/log/kibana/kibana.log"
+      layout:
+        type: "json"
+  root:
+    appenders: ["file"]
+    level: "info"
+
+# Disable telemetry
+telemetry:
+  enabled: false
+
+# Index pattern settings for lead generation metrics
+kibana.index_pattern:
+  id: "lead-metrics-*"
+  interval: "daily"
+
+# CORS settings for API access
+server.cors:
+  enabled: true
+  allowCredentials: false
+  allowOrigin: ["http://localhost:*", "https://*.insuranceleads.com"]
+
+# Cache settings for dashboard performance
+cache:
+  maxAge: 3600000
+
+# Search settings
+search:
+  timeout:
+    shardTimeout: "30s"
+    searchTimeout: "30s"
+
+# Map settings for geographic data visualization
+map:
+  includeElasticMapsService: false
+  regionmap:
+    includeElasticMapsService: false
+
+# SavedObjects settings
+savedObjects:
+  maxImportPayloadBytes: 26214400
+  maxImportExportSize: 10000
+
+# Status page settings
+status:
+  allowAnonymous: false
