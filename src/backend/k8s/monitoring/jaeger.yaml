@@ -1,0 +1,167 @@
+# Jaeger Operator Version: 1.45.0
+# Components: jaeger-collector:1.45.0, jaeger-query:1.45.0, jaeger-agent:1.45.0
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: jaeger
+  namespace: monitoring
+  labels:
+    app: jaeger
+    component: tracing
+spec:
+  strategy: production  # Production deployment strategy for high availability
+  
+  # Storage configuration using Elasticsearch
+  storage:
+    type: elasticsearch
+    options:
+      es:
+        server-urls: http://elasticsearch:9200
+        username: ${ES_USERNAME}
+        password: ${ES_PASSWORD}
+        tls:
+          ca: /es-certs/ca.crt
+      index-prefix: jaeger
+      tags-as-fields:
+        all: true
+      
+  # Collector configuration with autoscaling
+  collector:
+    replicas: 3
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 80
+    resources:
+      limits:
+        cpu: "2"
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    options:
+      collector:
+        grpc-port: 14250
+        http-port: 14268
+        
+  # Query service configuration
+  query:
+    replicas: 2
+    resources:
+      limits:
+        cpu: "1"
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    options:
+      query:
+        port: 16686
+        
+  # Agent configuration as DaemonSet
+  agent:
+    strategy: DaemonSet
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    options:
+      agent:
+        port: 6831
+        
+  # Sampling strategies configuration
+  sampling:
+    options:
+      default:
+        type: probabilistic
+        param: 0.1
+      service_strategies:
+        - service: lead-service
+          type: probabilistic
+          param: 1.0
+        - service: rtb-service
+          type: probabilistic
+          param: 1.0
+        - service: validation-service
+          type: probabilistic
+          param: 0.5
+          
+  # Ingress configuration with OAuth proxy and TLS
+  ingress:
+    enabled: true
+    security: oauth-proxy
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    tls:
+      enabled: true
+      
+  # Security context configuration
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    
+  # Storage retention and cleanup configuration
+  storage:
+    options:
+      es:
+        index-cleaner:
+          enabled: true
+          schedule: "0 0 * * *"
+          number-of-days: 7
+        index-rollover:
+          schedule: "0 0 * * *"
+          max-age: "24h"
+          
+  # Persistence configuration
+  persistence:
+    enabled: true
+    options:
+      es-data-retention: 7d
+      es-index-cleaner-enabled: true
+      backup:
+        enabled: true
+        schedule: "0 0 * * *"
+        retention: "30d"
+        
+  # Monitoring integration
+  monitoring:
+    grafana:
+      enabled: true
+      datasource:
+        name: jaeger
+        url: http://jaeger-query:16686
+    prometheus:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        
+  # Additional options for production readiness
+  options:
+    log-level: info
+    memory:
+      max-traces: 100000
+    es:
+      bulk:
+        size: 5000000
+        workers: 10
+      timeout: 15s
+    query:
+      additional-headers:
+        - x-request-id
+      base-path: /jaeger
+    collector:
+      queue-size: 2000
+      num-workers: 50
+      http:
+        tls:
+          enabled: true
+          cert: /tls/tls.crt
+          key: /tls/tls.key
