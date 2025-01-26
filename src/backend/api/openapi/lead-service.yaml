@@ -1,0 +1,396 @@
+openapi: 3.0.3
+
+info:
+  title: Lead Service API
+  version: 1.0.0
+  description: |
+    Enterprise-grade REST API for lead generation, validation, scoring, and distribution 
+    across multiple insurance verticals including Auto, Home, Health, Life, Renters, and Commercial.
+
+servers:
+  - url: /api/v1
+    description: Lead Service API v1
+
+security:
+  - oauth2: ['leads:write', 'leads:read']
+  - apiKey: []
+
+paths:
+  /leads:
+    post:
+      summary: Create new insurance lead
+      description: Creates a new lead with real-time validation and ML scoring
+      operationId: createLead
+      tags:
+        - Leads
+      security:
+        - oauth2: ['leads:write']
+        - apiKey: []
+      parameters:
+        - in: header
+          name: X-Request-ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Unique request identifier
+        - in: header
+          name: X-Client-ID
+          required: true
+          schema:
+            type: string
+          description: Client application identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeadRequest'
+      responses:
+        '201':
+          description: Lead created successfully
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                format: uuid
+            X-Lead-ID:
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /leads/{leadId}:
+    get:
+      summary: Retrieve lead by ID
+      description: Returns complete lead details including validation results and scoring
+      operationId: getLead
+      tags:
+        - Leads
+      security:
+        - oauth2: ['leads:read']
+        - apiKey: []
+      parameters:
+        - in: path
+          name: leadId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: header
+          name: X-Request-ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lead details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeadResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      summary: Update lead status
+      description: Updates lead status with audit trail
+      operationId: updateLeadStatus
+      tags:
+        - Leads
+      security:
+        - oauth2: ['leads:write']
+        - apiKey: []
+      parameters:
+        - in: path
+          name: leadId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: header
+          name: X-Request-ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeadStatusRequest'
+      responses:
+        '200':
+          description: Lead status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  schemas:
+    LeadRequest:
+      type: object
+      required:
+        - vertical
+        - contact_info
+        - vertical_data
+        - traffic_source
+      properties:
+        vertical:
+          type: string
+          enum: [AUTO, HOME, HEALTH, LIFE, RENTERS, COMMERCIAL]
+        contact_info:
+          $ref: '#/components/schemas/ContactInfo'
+        vertical_data:
+          $ref: '#/components/schemas/VerticalData'
+        traffic_source:
+          type: string
+        device_info:
+          $ref: '#/components/schemas/DeviceInfo'
+        consent_flags:
+          $ref: '#/components/schemas/ConsentFlags'
+
+    LeadResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        vertical:
+          type: string
+          enum: [AUTO, HOME, HEALTH, LIFE, RENTERS, COMMERCIAL]
+        contact_info:
+          $ref: '#/components/schemas/ContactInfo'
+        vertical_data:
+          $ref: '#/components/schemas/VerticalData'
+        ml_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        validation_results:
+          $ref: '#/components/schemas/ValidationResults'
+        status:
+          type: string
+          enum: [CREATED, VALIDATING, VALIDATED, SCORING, SCORED, MATCHED, SOLD, REJECTED, ERROR, PARTIAL]
+        created_at:
+          type: string
+          format: date-time
+        status_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatusHistory'
+        performance_metrics:
+          $ref: '#/components/schemas/PerformanceMetrics'
+
+    ContactInfo:
+      type: object
+      required:
+        - firstName
+        - lastName
+        - email
+        - phone
+        - address
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          pattern: ^\+[1-9]\d{1,14}$
+        address:
+          $ref: '#/components/schemas/Address'
+        dateOfBirth:
+          type: string
+          format: date
+        ssn:
+          type: string
+          pattern: ^\d{9}$
+
+    Address:
+      type: object
+      required:
+        - street
+        - city
+        - state
+        - zip
+      properties:
+        street:
+          type: string
+        unit:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+          pattern: ^[A-Z]{2}$
+        zip:
+          type: string
+          pattern: ^\d{5}(-\d{4})?$
+        validatedAt:
+          type: string
+          format: date-time
+        geocode:
+          type: object
+          properties:
+            lat:
+              type: number
+              format: float
+            lng:
+              type: number
+              format: float
+
+    VerticalData:
+      type: object
+      required:
+        - vertical
+        - data
+      properties:
+        vertical:
+          type: string
+          enum: [AUTO, HOME, HEALTH, LIFE, RENTERS, COMMERCIAL]
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/AutoData'
+            - $ref: '#/components/schemas/HomeData'
+            - $ref: '#/components/schemas/HealthData'
+            - $ref: '#/components/schemas/LifeData'
+            - $ref: '#/components/schemas/RentersData'
+            - $ref: '#/components/schemas/CommercialData'
+        validationResults:
+          type: object
+          additionalProperties:
+            type: boolean
+        enrichmentData:
+          type: object
+
+    ValidationResults:
+      type: object
+      properties:
+        isValid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationWarning'
+
+    StatusHistory:
+      type: object
+      required:
+        - timestamp
+        - status
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [CREATED, VALIDATING, VALIDATED, SCORING, SCORED, MATCHED, SOLD, REJECTED, ERROR, PARTIAL]
+        message:
+          type: string
+
+    PerformanceMetrics:
+      type: object
+      properties:
+        processingTime:
+          type: number
+        validationTime:
+          type: number
+        scoringTime:
+          type: number
+        matchingTime:
+          type: number
+
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /oauth/token
+          scopes:
+            leads:write: Create and update leads
+            leads:read: Read lead data
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication required or failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Leads
+    description: Lead management operations
