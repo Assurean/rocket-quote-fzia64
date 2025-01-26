@@ -1,0 +1,200 @@
+openapi: 3.0.0
+
+info:
+  title: ML Service API
+  version: 1.0.0
+  description: API for real-time lead scoring and ML model metrics across insurance verticals
+
+servers:
+  - url: /api/v1
+    description: Production server
+
+paths:
+  /score:
+    post:
+      summary: Score a single lead in real-time
+      description: Returns a lead score, confidence level, and suggested price based on ML model analysis
+      operationId: scoreLead
+      tags:
+        - Scoring
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vertical
+                - lead_data
+              properties:
+                vertical:
+                  type: string
+                  enum:
+                    - auto
+                    - home
+                    - health
+                    - life
+                    - renters
+                    - commercial
+                  description: Insurance vertical for scoring
+                lead_data:
+                  type: object
+                  description: Lead information for scoring
+                session_id:
+                  type: string
+                  description: Optional session ID for tracking
+      responses:
+        '200':
+          description: Successful scoring response
+          headers:
+            X-Model-Version:
+              schema:
+                type: string
+              description: Version of ML model used
+            X-Response-Time:
+              schema:
+                type: number
+              description: API response time in milliseconds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  score:
+                    type: number
+                    format: float
+                    description: Lead quality score (0-1)
+                  confidence:
+                    type: number
+                    format: float
+                    description: Model confidence score
+                  suggested_price:
+                    type: number
+                    format: float
+                    description: Recommended CPL
+                  features:
+                    type: object
+                    description: Key features influencing score
+        '400':
+          description: Invalid request parameters
+        '429':
+          description: Rate limit exceeded
+        '500':
+          description: Internal server error
+        '503':
+          description: Service temporarily unavailable
+
+  /batch-score:
+    post:
+      summary: Score multiple leads in batch
+      description: Batch scoring endpoint for multiple leads
+      operationId: batchScoreLeads
+      tags:
+        - Scoring
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vertical
+                - leads
+              properties:
+                vertical:
+                  type: string
+                  enum:
+                    - auto
+                    - home
+                    - health
+                    - life
+                    - renters
+                    - commercial
+                leads:
+                  type: array
+                  items:
+                    type: object
+                  maxItems: 100
+      responses:
+        '200':
+          description: Batch scoring results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    lead_id:
+                      type: string
+                    score:
+                      type: number
+                    confidence:
+                      type: number
+                    suggested_price:
+                      type: number
+
+  /metrics/{vertical}:
+    get:
+      summary: Get model metrics for vertical
+      description: Retrieve performance metrics and feature importance for a vertical's ML model
+      operationId: getModelMetrics
+      tags:
+        - Monitoring
+      parameters:
+        - name: vertical
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - auto
+              - home
+              - health
+              - life
+              - renters
+              - commercial
+        - name: timeframe
+          in: query
+          schema:
+            type: string
+            enum:
+              - 1h
+              - 24h
+              - 7d
+              - 30d
+      responses:
+        '200':
+          description: Model metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accuracy:
+                    type: number
+                  acceptance_rate:
+                    type: number
+                  average_confidence:
+                    type: number
+                  feature_importance:
+                    type: object
+                  response_times:
+                    type: object
+                    properties:
+                      p50:
+                        type: number
+                      p95:
+                        type: number
+                      p99:
+                        type: number
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+security:
+  - ApiKeyAuth: []
