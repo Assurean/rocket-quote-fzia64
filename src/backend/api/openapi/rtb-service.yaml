@@ -1,0 +1,401 @@
+openapi: 3.0.3
+
+info:
+  title: Real-Time Bidding (RTB) Service API
+  description: |
+    Enterprise-grade REST API for real-time bidding operations, click tracking, 
+    and partner integrations with comprehensive security and monitoring.
+  version: 1.0.0
+  contact:
+    name: Insurance Platform Team
+    email: api-support@insurance.com
+
+servers:
+  - url: /api/v1
+    description: Production API endpoint
+
+security:
+  - OAuth2: ['rtb.bids', 'rtb.clicks']
+  - ApiKeyAuth: []
+
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /oauth/token
+          scopes:
+            rtb.bids: Access to bid request endpoints
+            rtb.clicks: Access to click tracking endpoints
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    BidRequest:
+      type: object
+      required:
+        - request_id
+        - lead_id
+        - vertical
+        - timeout_ms
+      properties:
+        request_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the bid request
+        lead_id:
+          type: string
+          format: uuid
+          description: Reference to the lead being monetized
+        vertical:
+          type: string
+          enum: [AUTO, HOME, HEALTH, LIFE, RENTERS, COMMERCIAL]
+        user_data:
+          type: object
+          properties:
+            ip_address:
+              type: string
+              format: ipv4
+            user_agent:
+              type: string
+            zip_code:
+              type: string
+              pattern: '^\d{5}(-\d{4})?$'
+            demographics:
+              type: object
+              additionalProperties:
+                type: string
+        timeout_ms:
+          type: integer
+          minimum: 100
+          maximum: 1000
+          default: 500
+        floor_price:
+          type: number
+          format: float
+          minimum: 0
+        targeting_criteria:
+          type: object
+          additionalProperties:
+            type: string
+
+    Bid:
+      type: object
+      required:
+        - bid_id
+        - partner_id
+        - bid_price
+        - click_url
+      properties:
+        bid_id:
+          type: string
+          format: uuid
+        partner_id:
+          type: string
+        bid_price:
+          type: number
+          format: float
+          minimum: 0
+        normalized_price:
+          type: number
+          format: float
+        click_url:
+          type: string
+          format: uri
+        creative_data:
+          type: object
+          properties:
+            headline:
+              type: string
+            description:
+              type: string
+            image_url:
+              type: string
+              format: uri
+            display_url:
+              type: string
+        expiration:
+          type: string
+          format: date-time
+        tracking_data:
+          type: object
+          additionalProperties:
+            type: string
+
+    BidResponse:
+      type: object
+      required:
+        - request_id
+        - bids
+        - timestamp
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        bids:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bid'
+        timestamp:
+          type: string
+          format: date-time
+        total_bids_received:
+          type: integer
+          minimum: 0
+        valid_bids_count:
+          type: integer
+          minimum: 0
+        error_codes:
+          type: array
+          items:
+            type: string
+        metrics:
+          $ref: '#/components/schemas/BidMetrics'
+
+    BidMetrics:
+      type: object
+      properties:
+        partner_timeouts:
+          type: integer
+          minimum: 0
+        invalid_bids:
+          type: integer
+          minimum: 0
+        average_bid_price:
+          type: number
+          format: float
+        highest_bid:
+          type: number
+          format: float
+        processing_start:
+          type: string
+          format: date-time
+        processing_end:
+          type: string
+          format: date-time
+
+    ClickEvent:
+      type: object
+      required:
+        - click_id
+        - bid_id
+        - lead_id
+        - clicked_at
+      properties:
+        click_id:
+          type: string
+          format: uuid
+        bid_id:
+          type: string
+          format: uuid
+        lead_id:
+          type: string
+          format: uuid
+        clicked_at:
+          type: string
+          format: date-time
+        user_data:
+          type: object
+          properties:
+            ip_address:
+              type: string
+              format: ipv4
+            user_agent:
+              type: string
+        fraud_signals:
+          type: object
+          additionalProperties:
+            type: string
+        conversion_data:
+          type: object
+          additionalProperties:
+            type: string
+
+    ClickResponse:
+      type: object
+      required:
+        - click_id
+        - status
+        - processed_at
+      properties:
+        click_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - VALID
+            - INVALID
+            - SUSPICIOUS
+            - ERROR
+        error_message:
+          type: string
+        processed_at:
+          type: string
+          format: date-time
+        fraud_detected:
+          type: boolean
+        validation_results:
+          type: object
+          additionalProperties:
+            type: string
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+paths:
+  /bids:
+    post:
+      operationId: requestBids
+      summary: Request bids from RTB partners
+      description: |
+        Requests real-time bids from advertising partners with configurable timeout
+        and validation rules. Returns normalized bid prices and creative content.
+      tags:
+        - Bidding
+      security:
+        - OAuth2: ['rtb.bids']
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BidRequest'
+      responses:
+        '200':
+          description: Successful bid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BidResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '408':
+          description: Request timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Too many requests
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /clicks:
+    post:
+      operationId: trackClick
+      summary: Track click events on bid offers
+      description: |
+        Records and validates click events with fraud detection and conversion tracking.
+      tags:
+        - Tracking
+      security:
+        - OAuth2: ['rtb.clicks']
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClickEvent'
+      responses:
+        '200':
+          description: Click event processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClickResponse'
+        '400':
+          description: Invalid click event data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Referenced bid not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Too many requests
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      operationId: checkHealth
+      summary: Check RTB service health
+      description: Returns health status of the RTB service and its dependencies
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum: [HEALTHY]
+                  version:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - error
+                properties:
+                  status:
+                    type: string
+                    enum: [UNHEALTHY]
+                  error:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
