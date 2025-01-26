@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package insurance.campaign.v1;
+
+import "google/protobuf/timestamp.proto";  // v3.0.0
+import "google/protobuf/wrappers.proto";   // v3.0.0
+import "../proto/lead.proto";
+
+option go_package = "github.com/insurance/campaign/v1";
+option java_multiple_files = true;
+option optimize_for = SPEED;
+
+// CampaignService provides comprehensive campaign management capabilities
+service CampaignService {
+  // CreateCampaign creates a new lead buying campaign with validation
+  rpc CreateCampaign(CreateCampaignRequest) returns (CreateCampaignResponse) {}
+  
+  // UpdateCampaign modifies existing campaign settings with budget validation
+  rpc UpdateCampaign(UpdateCampaignRequest) returns (UpdateCampaignResponse) {}
+  
+  // GetCampaign retrieves detailed campaign information with real-time metrics
+  rpc GetCampaign(GetCampaignRequest) returns (GetCampaignResponse) {}
+  
+  // ListCampaigns retrieves filtered and paginated campaign list
+  rpc ListCampaigns(ListCampaignsRequest) returns (ListCampaignsResponse) {}
+}
+
+// Campaign represents the core campaign data structure
+message Campaign {
+  string id = 1;
+  string buyer_id = 2;
+  string name = 3;
+  string vertical = 4;
+  CampaignStatus status = 5;
+  BudgetSettings budget = 6;
+  FilterSettings filters = 7;
+  PerformanceMetrics metrics = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// BudgetSettings contains campaign budget configuration and tracking
+message BudgetSettings {
+  double daily_budget = 1;
+  double max_cpl = 2;
+  int32 daily_lead_cap = 3;
+  double spent_today = 4;
+  int32 leads_today = 5;
+  double total_spent = 6;
+  int32 total_leads = 7;
+  double remaining_budget = 8;
+}
+
+// FilterSettings defines campaign targeting criteria
+message FilterSettings {
+  repeated string states = 1;
+  repeated string zip_codes = 2;
+  repeated string credit_scores = 3;
+  AgeRange age_range = 4;
+  repeated string vehicle_types = 5;
+  repeated string property_types = 6;
+  double min_property_value = 7;
+  double max_property_value = 8;
+  repeated string insurance_carriers = 9;
+  repeated string lead_sources = 10;
+}
+
+// PerformanceMetrics tracks campaign effectiveness
+message PerformanceMetrics {
+  double acceptance_rate = 1;
+  double conversion_rate = 2;
+  double average_quality_score = 3;
+  int32 active_days = 4;
+  double roi = 5;
+}
+
+// AgeRange defines target age boundaries
+message AgeRange {
+  int32 min_age = 1;
+  int32 max_age = 2;
+}
+
+// CreateCampaignRequest initiates campaign creation
+message CreateCampaignRequest {
+  string buyer_id = 1;
+  string name = 2;
+  string vertical = 3;
+  BudgetSettings budget = 4;
+  FilterSettings filters = 5;
+}
+
+// CreateCampaignResponse contains new campaign details
+message CreateCampaignResponse {
+  string campaign_id = 1;
+  CampaignStatus status = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+// UpdateCampaignRequest modifies campaign settings
+message UpdateCampaignRequest {
+  string campaign_id = 1;
+  string buyer_id = 2;
+  google.protobuf.StringValue name = 3;
+  BudgetSettings budget = 4;
+  FilterSettings filters = 5;
+  CampaignStatus status = 6;
+}
+
+// UpdateCampaignResponse contains modified campaign details
+message UpdateCampaignResponse {
+  Campaign campaign = 1;
+  google.protobuf.Timestamp updated_at = 2;
+}
+
+// GetCampaignRequest retrieves campaign by ID
+message GetCampaignRequest {
+  string campaign_id = 1;
+  string buyer_id = 2;
+}
+
+// GetCampaignResponse returns comprehensive campaign details
+message GetCampaignResponse {
+  Campaign campaign = 1;
+  RealTimeMetrics real_time_metrics = 2;
+}
+
+// ListCampaignsRequest supports filtered campaign retrieval
+message ListCampaignsRequest {
+  string buyer_id = 1;
+  repeated CampaignStatus status_filter = 2;
+  string vertical_filter = 3;
+  int32 page_size = 4;
+  string page_token = 5;
+}
+
+// ListCampaignsResponse provides paginated campaign results
+message ListCampaignsResponse {
+  repeated Campaign campaigns = 1;
+  string next_page_token = 2;
+  int32 total_campaigns = 3;
+  AggregateMetrics aggregate_metrics = 4;
+}
+
+// RealTimeMetrics provides current campaign performance data
+message RealTimeMetrics {
+  double current_spend_rate = 1;
+  double projected_daily_spend = 2;
+  int32 active_leads = 3;
+  int32 pending_leads = 4;
+  double real_time_quality_score = 5;
+}
+
+// AggregateMetrics summarizes multiple campaign performance
+message AggregateMetrics {
+  double total_daily_budget = 1;
+  double total_spent_today = 2;
+  int32 total_leads_today = 3;
+  double average_acceptance_rate = 4;
+  double overall_roi = 5;
+}
+
+// CampaignStatus tracks campaign lifecycle states
+enum CampaignStatus {
+  CAMPAIGN_STATUS_UNSPECIFIED = 0;
+  CAMPAIGN_STATUS_DRAFT = 1;
+  CAMPAIGN_STATUS_ACTIVE = 2;
+  CAMPAIGN_STATUS_PAUSED = 3;
+  CAMPAIGN_STATUS_BUDGET_DEPLETED = 4;
+  CAMPAIGN_STATUS_COMPLETED = 5;
+  CAMPAIGN_STATUS_ARCHIVED = 6;
+}
