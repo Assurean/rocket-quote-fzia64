@@ -1,0 +1,328 @@
+syntax = "proto3";
+
+package insurance.validation.v1;
+
+import "google/protobuf/timestamp.proto";  // v3.0.0
+import "google/protobuf/wrappers.proto";   // v3.0.0
+import "google/protobuf/duration.proto";   // v3.0.0
+
+option go_package = "github.com/insurance/validation/v1";
+option java_multiple_files = true;
+option optimize_for = SPEED;
+
+// ValidationService provides RPCs for real-time lead data validation
+service ValidationService {
+  // ValidateLead validates a single lead with comprehensive error handling
+  rpc ValidateLead (ValidationRequest) returns (ValidationResponse) {}
+  
+  // BatchValidateLeads validates multiple leads in parallel for improved performance
+  rpc BatchValidateLeads (BatchValidationRequest) returns (BatchValidationResponse) {}
+}
+
+// ContactInfo represents contact details with validation rules
+message ContactInfo {
+  string email = 1;
+  string phone = 2;
+  string first_name = 3;
+  string last_name = 4;
+  ContactMethod preferred_contact_method = 5;
+  bool consent_to_contact = 6;
+}
+
+// AddressInfo represents location data with geocoding support
+message AddressInfo {
+  string street_address = 1;
+  string unit_number = 2;
+  string city = 3;
+  string state = 4;
+  string zip_code = 5;
+  double latitude = 6;
+  double longitude = 7;
+}
+
+// ValidationRequest contains all data requiring validation
+message ValidationRequest {
+  string request_id = 1;
+  ContactInfo contact_info = 2;
+  AddressInfo address_info = 3;
+  InsuranceVertical vertical = 4;
+  VerticalSpecificData vertical_data = 5;
+  google.protobuf.Timestamp request_time = 6;
+}
+
+// ValidationResponse contains validation results and enriched data
+message ValidationResponse {
+  string request_id = 1;
+  ValidationStatus status = 2;
+  repeated ValidationError errors = 3;
+  EnrichedData enriched_data = 4;
+  google.protobuf.Duration processing_time = 5;
+  PerformanceMetrics metrics = 6;
+}
+
+// BatchValidationRequest for processing multiple leads
+message BatchValidationRequest {
+  string batch_id = 1;
+  repeated ValidationRequest requests = 2;
+  google.protobuf.Timestamp batch_time = 3;
+}
+
+// BatchValidationResponse contains aggregated validation results
+message BatchValidationResponse {
+  string batch_id = 1;
+  repeated ValidationResponse responses = 2;
+  BatchMetrics batch_metrics = 3;
+  google.protobuf.Duration total_processing_time = 4;
+}
+
+// ValidationError represents detailed error information
+message ValidationError {
+  string field = 1;
+  ErrorCode code = 2;
+  string message = 3;
+  Severity severity = 4;
+}
+
+// EnrichedData contains additional validated/enriched information
+message EnrichedData {
+  PhoneValidation phone_validation = 1;
+  EmailValidation email_validation = 2;
+  AddressValidation address_validation = 3;
+  VerticalEnrichment vertical_enrichment = 4;
+}
+
+// PerformanceMetrics for monitoring SLA compliance
+message PerformanceMetrics {
+  google.protobuf.Duration validation_duration = 1;
+  google.protobuf.Duration enrichment_duration = 2;
+  int32 external_service_calls = 3;
+  repeated ServiceLatency service_latencies = 4;
+}
+
+// BatchMetrics for monitoring batch processing performance
+message BatchMetrics {
+  int32 total_requests = 1;
+  int32 successful_validations = 2;
+  int32 failed_validations = 3;
+  google.protobuf.Duration average_processing_time = 4;
+  google.protobuf.Duration max_processing_time = 5;
+}
+
+// ServiceLatency tracks external service performance
+message ServiceLatency {
+  string service_name = 1;
+  google.protobuf.Duration latency = 2;
+  bool success = 3;
+}
+
+// Enums
+enum ContactMethod {
+  CONTACT_METHOD_UNSPECIFIED = 0;
+  CONTACT_METHOD_EMAIL = 1;
+  CONTACT_METHOD_PHONE = 2;
+  CONTACT_METHOD_SMS = 3;
+}
+
+enum InsuranceVertical {
+  INSURANCE_VERTICAL_UNSPECIFIED = 0;
+  INSURANCE_VERTICAL_AUTO = 1;
+  INSURANCE_VERTICAL_HOME = 2;
+  INSURANCE_VERTICAL_HEALTH = 3;
+  INSURANCE_VERTICAL_LIFE = 4;
+  INSURANCE_VERTICAL_RENTERS = 5;
+  INSURANCE_VERTICAL_COMMERCIAL = 6;
+}
+
+enum ValidationStatus {
+  VALIDATION_STATUS_UNSPECIFIED = 0;
+  VALIDATION_STATUS_SUCCESS = 1;
+  VALIDATION_STATUS_PARTIAL_SUCCESS = 2;
+  VALIDATION_STATUS_FAILURE = 3;
+}
+
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_INVALID_FORMAT = 1;
+  ERROR_CODE_MISSING_REQUIRED = 2;
+  ERROR_CODE_VALIDATION_FAILED = 3;
+  ERROR_CODE_SERVICE_UNAVAILABLE = 4;
+  ERROR_CODE_TIMEOUT = 5;
+}
+
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_INFO = 1;
+  SEVERITY_WARNING = 2;
+  SEVERITY_ERROR = 3;
+  SEVERITY_CRITICAL = 4;
+}
+
+// Vertical-specific validation data
+message VerticalSpecificData {
+  oneof data {
+    AutoData auto = 1;
+    HomeData home = 2;
+    HealthData health = 3;
+    LifeData life = 4;
+    RentersData renters = 5;
+    CommercialData commercial = 6;
+  }
+}
+
+// Vertical-specific enrichment data
+message VerticalEnrichment {
+  oneof enrichment {
+    AutoEnrichment auto = 1;
+    HomeEnrichment home = 2;
+    HealthEnrichment health = 3;
+    LifeEnrichment life = 4;
+    RentersEnrichment renters = 5;
+    CommercialEnrichment commercial = 6;
+  }
+}
+
+// Validation result messages
+message PhoneValidation {
+  bool is_valid = 1;
+  bool is_mobile = 2;
+  string carrier = 3;
+  string formatted_number = 4;
+}
+
+message EmailValidation {
+  bool is_valid = 1;
+  bool is_disposable = 2;
+  bool mx_record_exists = 3;
+  float confidence_score = 4;
+}
+
+message AddressValidation {
+  bool is_valid = 1;
+  string standardized_address = 2;
+  bool is_residential = 3;
+  float confidence_score = 4;
+  google.protobuf.Timestamp last_verified = 5;
+}
+
+// Vertical-specific data messages
+message AutoData {
+  string vin = 1;
+  int32 year = 2;
+  string make = 3;
+  string model = 4;
+}
+
+message HomeData {
+  int32 year_built = 1;
+  int32 square_feet = 2;
+  string construction_type = 3;
+  string roof_type = 4;
+}
+
+message HealthData {
+  string date_of_birth = 1;
+  string gender = 2;
+  bool tobacco_use = 3;
+  repeated string pre_existing_conditions = 4;
+}
+
+message LifeData {
+  string date_of_birth = 1;
+  string gender = 2;
+  bool tobacco_use = 3;
+  string coverage_amount = 4;
+}
+
+message RentersData {
+  int32 personal_property_value = 1;
+  bool pets = 2;
+  string rental_type = 3;
+}
+
+message CommercialData {
+  string business_type = 1;
+  int32 annual_revenue = 2;
+  int32 num_employees = 3;
+  repeated string coverage_types = 4;
+}
+
+// Vertical-specific enrichment messages
+message AutoEnrichment {
+  VehicleDetails vehicle_details = 1;
+  SafetyRating safety_rating = 2;
+}
+
+message HomeEnrichment {
+  PropertyDetails property_details = 1;
+  HazardInfo hazard_info = 2;
+}
+
+message HealthEnrichment {
+  repeated string provider_network = 1;
+  repeated string available_plans = 2;
+}
+
+message LifeEnrichment {
+  repeated string available_products = 1;
+  RiskAssessment risk_assessment = 2;
+}
+
+message RentersEnrichment {
+  PropertyDetails property_details = 1;
+  NeighborhoodInfo neighborhood_info = 2;
+}
+
+message CommercialEnrichment {
+  IndustryInfo industry_info = 1;
+  RiskProfile risk_profile = 2;
+}
+
+// Supporting messages for enrichments
+message VehicleDetails {
+  string trim = 1;
+  string body_style = 2;
+  string engine = 3;
+  string transmission = 4;
+  repeated string safety_features = 5;
+}
+
+message SafetyRating {
+  float overall_rating = 1;
+  map<string, float> category_ratings = 2;
+}
+
+message PropertyDetails {
+  int32 bedrooms = 1;
+  int32 bathrooms = 2;
+  string lot_size = 3;
+  repeated string features = 4;
+}
+
+message HazardInfo {
+  float flood_risk = 1;
+  float fire_risk = 2;
+  float crime_risk = 3;
+  repeated string natural_hazards = 4;
+}
+
+message RiskAssessment {
+  float risk_score = 1;
+  repeated string risk_factors = 2;
+}
+
+message NeighborhoodInfo {
+  float crime_rate = 1;
+  map<string, float> amenity_scores = 2;
+}
+
+message IndustryInfo {
+  string sic_code = 1;
+  string naics_code = 2;
+  repeated string industry_risks = 3;
+}
+
+message RiskProfile {
+  float risk_score = 1;
+  repeated string risk_factors = 2;
+  map<string, float> coverage_recommendations = 3;
+}
