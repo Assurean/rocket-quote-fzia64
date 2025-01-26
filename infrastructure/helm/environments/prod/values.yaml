@@ -1,0 +1,172 @@
+# Production Environment Helm Values Configuration
+# Version: 1.0.0
+# Kubernetes Version: 1.27+
+
+# Global configuration values for all services
+global:
+  environment: prod
+  image:
+    registry: 123456789012.dkr.ecr.us-east-1.amazonaws.com
+    pullPolicy: Always
+    tag: latest
+
+  monitoring:
+    enabled: true
+    prometheus:
+      scrape: true
+      path: /metrics
+      port: 9090
+      interval: "15s"
+    jaeger:
+      enabled: true
+      endpoint: http://jaeger-collector:14268/api/traces
+      samplingRate: 0.1
+    logging:
+      level: info
+      format: json
+
+  security:
+    tls:
+      enabled: true
+      minVersion: TLS1.2
+    networkPolicies:
+      enabled: true
+
+# API Gateway Configuration
+api_gateway:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  plugins:
+    rate-limiting:
+      enabled: true
+      config:
+        minute: 1000
+        hour: 50000
+        fault_tolerant: true
+        hide_client_headers: false
+    jwt:
+      enabled: true
+      config:
+        claims_to_verify:
+          - exp
+          - nbf
+        key_claim_name: kid
+        maximum_expiration: 3600
+    cors:
+      enabled: true
+      config:
+        origins:
+          - https://*.insuranceplatform.com
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        headers:
+          - Authorization
+          - Content-Type
+        exposed_headers:
+          - X-Auth-Token
+        max_age: 3600
+
+# Microservices Configuration
+services:
+  lead:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilization: 70
+      targetMemoryUtilization: 80
+      scaleDownStabilizationWindowSeconds: 300
+
+  ml:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 2000m
+        memory: 4Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 8
+      targetCPUUtilization: 70
+      targetMemoryUtilization: 80
+      scaleDownStabilizationWindowSeconds: 300
+
+  rtb:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 12
+      targetCPUUtilization: 70
+      targetMemoryUtilization: 80
+      scaleDownStabilizationWindowSeconds: 300
+
+  validation:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 8
+      targetCPUUtilization: 70
+      targetMemoryUtilization: 80
+      scaleDownStabilizationWindowSeconds: 300
+
+  campaign:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 6
+      targetCPUUtilization: 70
+      targetMemoryUtilization: 80
+      scaleDownStabilizationWindowSeconds: 300
