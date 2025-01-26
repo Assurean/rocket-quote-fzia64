@@ -1,0 +1,167 @@
+# Prometheus configuration file for Multi-Vertical Insurance Lead Generation Platform
+# Version: 1.0.0
+# js-yaml: 4.1.0
+
+# Global configuration
+global:
+  scrape_interval: 15s      # Default scrape interval for all jobs
+  evaluation_interval: 1m   # How frequently to evaluate rules
+  scrape_timeout: 10s      # Timeout for scrape requests
+  external_labels:         # Labels added to any time series or alerts
+    environment: production
+    region: us-east-1
+
+# Rule files to load
+rule_files:
+  - "rules/recording.yml"  # Recording rules for metric aggregation
+  - "rules/alerts.yml"     # Alert rules for service monitoring
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+      timeout: 10s
+      api_version: v2
+
+# Scrape configurations
+scrape_configs:
+  # Kubernetes pod discovery
+  - job_name: kubernetes-pods
+    honor_labels: true
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: ['default', 'monitoring']
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+
+  # Lead Service monitoring
+  - job_name: lead-service
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['lead-service:8080']
+        labels:
+          service: lead-service
+          tier: application
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: lead_processing_duration_seconds.*
+        action: keep
+
+  # ML Service monitoring
+  - job_name: ml-service
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['ml-service:8080']
+        labels:
+          service: ml-service
+          tier: application
+
+  # RTB Service monitoring (higher frequency due to real-time nature)
+  - job_name: rtb-service
+    metrics_path: /metrics
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['rtb-service:8080']
+        labels:
+          service: rtb-service
+          tier: application
+
+  # Validation Service monitoring
+  - job_name: validation-service
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['validation-service:8080']
+        labels:
+          service: validation-service
+          tier: application
+
+  # Node Exporter for host metrics
+  - job_name: node-exporter
+    metrics_path: /metrics
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: node-metrics
+          tier: infrastructure
+
+  # Redis monitoring
+  - job_name: redis-exporter
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: redis
+          tier: database
+
+  # MongoDB monitoring
+  - job_name: mongodb-exporter
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['mongodb-exporter:9216']
+        labels:
+          service: mongodb
+          tier: database
+
+  # API Gateway monitoring
+  - job_name: api-gateway
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['api-gateway:8080']
+        labels:
+          service: api-gateway
+          tier: gateway
+
+  # Load Balancer metrics
+  - job_name: load-balancer
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['load-balancer-exporter:9100']
+        labels:
+          service: load-balancer
+          tier: infrastructure
+
+  # Kafka monitoring
+  - job_name: kafka
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+        labels:
+          service: kafka
+          tier: messaging
+
+  # Elasticsearch monitoring
+  - job_name: elasticsearch
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['elasticsearch-exporter:9114']
+        labels:
+          service: elasticsearch
+          tier: database
+
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: prometheus
+          tier: monitoring
