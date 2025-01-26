@@ -1,0 +1,108 @@
+{{/* ConfigMap template for Multi-Vertical Insurance Lead Generation Platform */}}
+{{/* Version: 2024.1 */}}
+
+{{- define "services.config.validate" -}}
+{{- if not .Values.global -}}
+{{- fail "Global configuration values are required" -}}
+{{- end -}}
+{{- if not .Values.services -}}
+{{- fail "Service configuration values are required" -}}
+{{- end -}}
+{{- end -}}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-service-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.Version }}
+    app.kubernetes.io/component: configuration
+    environment: {{ .Values.global.environment }}
+  annotations:
+    checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    configVersion: {{ .Values.global.configVersion | default "2024.1" }}
+    lastUpdated: {{ now | date "2006-01-02T15:04:05Z07:00" }}
+data:
+  {{/* Lead Service Configuration */}}
+  lead-service.yaml: |
+    mongodb:
+      uri: {{ .Values.services.lead.config.mongodb.uri | quote }}
+      database: leads
+      options:
+        retryWrites: true
+        w: "majority"
+        maxPoolSize: {{ .Values.services.lead.config.mongodb.maxPoolSize | default 100 }}
+        connectTimeoutMS: 5000
+    redis:
+      url: {{ .Values.services.lead.config.redis.url | quote }}
+      maxClients: {{ .Values.services.lead.config.redis.maxClients | default 50 }}
+      timeout: {{ .Values.services.lead.config.redis.timeout | default 5000 }}
+    logLevel: {{ .Values.services.lead.config.logLevel | default "info" }}
+    metrics:
+      enabled: {{ .Values.global.monitoring.enabled }}
+      interval: {{ .Values.global.monitoring.prometheus.interval | default "15s" }}
+
+  {{/* ML Service Configuration */}}
+  ml-service.yaml: |
+    modelPath: {{ .Values.services.ml.config.modelPath | quote }}
+    batchSize: {{ .Values.services.ml.config.batchSize | default 32 }}
+    inferenceTimeout: {{ .Values.services.ml.config.inferenceTimeout | default 100 }}
+    scoring:
+      minScore: 0.4
+      targetScore: 0.7
+      confidenceThreshold: 0.85
+    monitoring:
+      enabled: {{ .Values.global.monitoring.enabled }}
+      modelDriftThreshold: 0.1
+    logLevel: {{ .Values.services.ml.config.logLevel | default "info" }}
+
+  {{/* RTB Service Configuration */}}
+  rtb-service.yaml: |
+    auction:
+      timeout: {{ .Values.services.rtb.config.bidTimeout | default 100 }}
+      maxBidders: {{ .Values.services.rtb.config.maxBidders | default 20 }}
+      minBid: 0.5
+      maxConcurrentAuctions: 1000
+    redis:
+      url: {{ .Values.services.rtb.config.redis.url | quote }}
+      maxClients: {{ .Values.services.rtb.config.redis.maxClients | default 100 }}
+      timeout: {{ .Values.services.rtb.config.redis.timeout | default 2000 }}
+    circuitBreaker:
+      errorThreshold: 50
+      resetTimeout: 30
+    logLevel: {{ .Values.services.rtb.config.logLevel | default "info" }}
+
+  {{/* Validation Service Configuration */}}
+  validation-service.yaml: |
+    redis:
+      url: {{ .Values.services.validation.config.redis.url | quote }}
+      maxClients: {{ .Values.services.validation.config.redis.maxClients | default 30 }}
+      timeout: {{ .Values.services.validation.config.redis.timeout | default 3000 }}
+    validation:
+      cacheTTL: 300
+      rateLimits:
+        default: 100
+        burst: 150
+    monitoring:
+      enabled: {{ .Values.global.monitoring.enabled }}
+      metricsPath: {{ .Values.global.monitoring.prometheus.path | default "/metrics" }}
+    logLevel: {{ .Values.services.validation.config.logLevel | default "info" }}
+
+  {{/* Common Configuration */}}
+  common.yaml: |
+    environment: {{ .Values.global.environment }}
+    monitoring:
+      jaeger:
+        enabled: {{ .Values.global.monitoring.jaeger.enabled }}
+        endpoint: {{ .Values.global.monitoring.jaeger.endpoint | quote }}
+        samplingRate: {{ .Values.global.monitoring.jaeger.samplingRate | default 0.1 }}
+      prometheus:
+        enabled: {{ .Values.global.monitoring.prometheus.scrape }}
+        path: {{ .Values.global.monitoring.prometheus.path | default "/metrics" }}
+        port: {{ .Values.global.monitoring.prometheus.port | default 9090 }}
+    logging:
+      format: {{ .Values.global.monitoring.logging.format | default "json" }}
+      retention: {{ .Values.global.monitoring.logging.retention | default "30d" }}
