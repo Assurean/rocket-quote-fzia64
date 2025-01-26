@@ -1,0 +1,143 @@
+# Helm values configuration for Multi-Vertical Insurance Lead Generation Platform - Staging Environment
+# Version: 1.0.0
+# Helm Version: 3.0+
+# Kong Version: 2.20.1
+
+global:
+  environment: staging
+  image:
+    registry: 123456789012.dkr.ecr.us-east-1.amazonaws.com
+    pullPolicy: Always
+    tag: staging
+  monitoring:
+    enabled: true
+    prometheus:
+      scrape: true
+      path: /metrics
+      port: 9090
+    jaeger:
+      enabled: true
+      endpoint: http://jaeger-collector:14268/api/traces
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+services:
+  lead:
+    replicaCount: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilization: 70
+    config:
+      mongodb:
+        uri: mongodb://mongodb-staging:27017/leads
+      redis:
+        url: redis://redis-staging:6379
+      logLevel: debug
+
+  ml:
+    replicaCount: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+      targetCPUUtilization: 70
+    config:
+      modelPath: /models/staging
+      scoringThresholds:
+        minimum: 0.5
+        optimal: 0.7
+
+  rtb:
+    replicaCount: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+      targetCPUUtilization: 70
+    config:
+      auctionTimeout: 200ms
+      bidderEndpoints:
+        partner1: https://staging-partner1.example.com/bid
+        partner2: https://staging-partner2.example.com/bid
+
+  validation:
+    replicaCount: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+      targetCPUUtilization: 70
+    config:
+      validationRules:
+        strictMode: true
+        timeoutMs: 1000
+
+  campaign:
+    replicaCount: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+      targetCPUUtilization: 70
+    config:
+      postgres:
+        host: postgres-staging
+        port: 5432
+        database: campaigns
+
+api-gateway:
+  kong:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+  
+  config:
+    plugins:
+      - name: jwt
+        enabled: true
+        config:
+          header_names:
+            - Authorization
+          claims_to_verify:
+            - exp
+      
+      - name: rate-limiting
+        enabled: true
+        config:
+          minute: 200
+          policy: local
+      
+      - name: cors
+        enabled: true
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+          headers:
+            - Content-Type
+            - Authorization
+          exposed_headers:
+            - X-Auth-Token
+          credentials: true
+          max_age: 3600
