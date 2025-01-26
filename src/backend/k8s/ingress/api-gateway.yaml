@@ -1,0 +1,153 @@
+# API Gateway Ingress Configuration
+# Version: v1
+# Dependencies:
+# - networking.k8s.io/v1
+# - cert-manager.io/v1
+# - monitoring.coreos.com/v1
+# - istio.io/v1beta1
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: insurance-platform-ingress
+  namespace: default
+  annotations:
+    # Ingress Controller Configuration
+    kubernetes.io/ingress.class: "nginx"
+    
+    # SSL/TLS Configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.3"
+    nginx.ingress.kubernetes.io/ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+    
+    # Security Headers
+    nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+    nginx.ingress.kubernetes.io/enable-owasp-core-rules: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    
+    # Rate Limiting
+    nginx.ingress.kubernetes.io/limit-rps: "1000"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "2"
+    
+    # Performance Tuning
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/connection-proxy-header: "keep-alive"
+    
+    # CORS Configuration
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
+    
+    # Monitoring
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9113"
+    prometheus.io/scheme: "http"
+  
+  labels:
+    app: insurance-platform
+    component: ingress
+    environment: production
+
+spec:
+  tls:
+    - hosts:
+        - api.insurance-platform.com
+      secretName: api-tls-cert
+  
+  rules:
+    - host: api.insurance-platform.com
+      http:
+        paths:
+          # Lead Service Routes
+          - path: /v1/leads
+            pathType: Prefix
+            backend:
+              service:
+                name: lead-service
+                port:
+                  number: 80
+          
+          # Campaign Service Routes
+          - path: /v1/campaigns
+            pathType: Prefix
+            backend:
+              service:
+                name: campaign-service
+                port:
+                  number: 80
+          
+          # ML Service Routes
+          - path: /v1/scoring
+            pathType: Prefix
+            backend:
+              service:
+                name: ml-service
+                port:
+                  number: 80
+          
+          # RTB Service Routes
+          - path: /v1/rtb
+            pathType: Prefix
+            backend:
+              service:
+                name: rtb-service
+                port:
+                  number: 80
+          
+          # Validation Service Routes
+          - path: /v1/validation
+            pathType: Prefix
+            backend:
+              service:
+                name: validation-service
+                port:
+                  number: 80
+
+---
+# Certificate Request for TLS
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: api-tls-cert
+  namespace: default
+spec:
+  secretName: api-tls-cert
+  duration: 2160h # 90 days
+  renewBefore: 720h # 30 days
+  subject:
+    organizations:
+      - Insurance Platform
+  commonName: api.insurance-platform.com
+  dnsNames:
+    - api.insurance-platform.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+# ServiceMonitor for Prometheus Integration
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: insurance-platform-ingress
+  namespace: default
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: insurance-platform
+      component: ingress
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_ingress_label_app]
+          targetLabel: app
+        - sourceLabels: [__meta_kubernetes_ingress_label_component]
+          targetLabel: component
