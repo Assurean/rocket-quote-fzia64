@@ -1,0 +1,113 @@
+# Dependencies
+node_modules/
+dist/
+build/
+*.pyc
+__pycache__/
+venv/
+.venv/
+pip-log.txt
+poetry.lock
+yarn.lock
+package-lock.json
+go.sum
+
+# Build Outputs
+lib/
+bin/
+out/
+*.js.map
+*.d.ts
+coverage/
+.nyc_output/
+junit.xml
+*.tsbuildinfo
+*.css.map
+storybook-static/
+
+# ML and Analytics
+model_weights/
+*.pkl
+*.h5
+*.onnx
+tensorboard/
+mlruns/
+training_data/
+model_artifacts/
+feature_store/
+
+# Infrastructure and Deployment
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+kubeconfig
+*.override.tf
+override.tf.json
+istio-*/
+helm-charts/
+.docker/
+*.tar
+*.docker
+
+# Cloud Provider
+.aws/
+aws.json
+.eks/
+credentials.csv
+*.pem
+*.key
+*.crt
+*.ca-bundle
+
+# Monitoring and Observability
+grafana-data/
+prometheus-data/
+elastic-data/
+kibana-data/
+*.log
+logs/
+trace-exports/
+metrics-exports/
+
+# IDE and Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.settings/
+*.sublime-*
+.project
+.classpath
+
+# Environment and Secrets
+.env
+.env.*
+secrets/
+credentials.json
+config.*.json
+*.pfx
+*.p12
+private_key.json
+
+# Testing and Coverage
+coverage/
+.nyc_output/
+junit.xml
+test-results/
+cypress/videos/
+cypress/screenshots/
+playwright-report/
+test-report/
+load-test-results/
+
+# Insurance Specific
+carrier-integration/temp/
+quote-cache/
+compliance-reports/
+audit-logs/
+pii-data/
+rate-tables/
+policy-templates/
