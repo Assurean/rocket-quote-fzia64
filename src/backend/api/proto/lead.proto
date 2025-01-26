@@ -1,0 +1,180 @@
+syntax = "proto3";
+
+package insurance.lead.v1;
+
+import "google/protobuf/timestamp.proto";  // v3.0.0
+import "google/protobuf/wrappers.proto";   // v3.0.0
+import "validation.proto";
+import "scoring.proto";
+
+option go_package = "github.com/insurance/lead/v1";
+
+// LeadService provides RPCs for lead management with enhanced batch support
+service LeadService {
+  // CreateLead creates a new insurance lead with validation and scoring
+  rpc CreateLead(CreateLeadRequest) returns (CreateLeadResponse) {}
+  
+  // BatchCreateLeads efficiently processes multiple leads in a single transaction
+  rpc BatchCreateLeads(BatchCreateLeadRequest) returns (BatchCreateLeadResponse) {}
+  
+  // GetLead retrieves a lead by ID with cross-sell opportunities
+  rpc GetLead(GetLeadRequest) returns (GetLeadResponse) {}
+}
+
+// Lead represents the core lead data structure with cross-sell support
+message Lead {
+  string id = 1;
+  string vertical = 2;
+  insurance.validation.v1.ContactInfo contact_info = 3;
+  insurance.validation.v1.AddressInfo address_info = 4;
+  VerticalData vertical_data = 5;
+  LeadStatus status = 6;
+  double quality_score = 7;
+  double price = 8;
+  repeated CrossSellOpportunity cross_sell_opportunities = 9;
+  optional string batch_id = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// VerticalData contains insurance vertical-specific information
+message VerticalData {
+  oneof data {
+    AutoData auto = 1;
+    HomeData home = 2;
+    HealthData health = 3;
+    LifeData life = 4;
+    RentersData renters = 5;
+    CommercialData commercial = 6;
+  }
+}
+
+// CrossSellOpportunity represents potential cross-vertical sales
+message CrossSellOpportunity {
+  string target_vertical = 1;
+  double probability = 2;
+  map<string, string> opportunity_data = 3;
+  double estimated_value = 4;
+  google.protobuf.Timestamp expiration = 5;
+}
+
+// CreateLeadRequest initiates lead creation with validation
+message CreateLeadRequest {
+  string vertical = 1;
+  insurance.validation.v1.ContactInfo contact_info = 2;
+  insurance.validation.v1.AddressInfo address_info = 3;
+  VerticalData vertical_data = 4;
+  string traffic_source = 5;
+  optional string batch_id = 6;
+}
+
+// CreateLeadResponse contains the created lead details
+message CreateLeadResponse {
+  string lead_id = 1;
+  LeadStatus status = 2;
+  double quality_score = 3;
+  double suggested_price = 4;
+  repeated CrossSellOpportunity cross_sell_opportunities = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+// BatchCreateLeadRequest enables bulk lead creation
+message BatchCreateLeadRequest {
+  repeated CreateLeadRequest leads = 1;
+  string batch_id = 2;
+  google.protobuf.Timestamp batch_time = 3;
+}
+
+// BatchCreateLeadResponse provides aggregated creation results
+message BatchCreateLeadResponse {
+  string batch_id = 1;
+  repeated CreateLeadResponse results = 2;
+  BatchMetrics metrics = 3;
+}
+
+// GetLeadRequest retrieves lead by ID
+message GetLeadRequest {
+  string lead_id = 1;
+}
+
+// GetLeadResponse returns lead with cross-sell data
+message GetLeadResponse {
+  Lead lead = 1;
+  repeated CrossSellOpportunity updated_opportunities = 2;
+}
+
+// BatchMetrics tracks batch processing performance
+message BatchMetrics {
+  int32 total_leads = 1;
+  int32 successful_creations = 2;
+  int32 failed_creations = 3;
+  double average_quality_score = 4;
+  double total_value = 5;
+  google.protobuf.Timestamp processing_time = 6;
+}
+
+// LeadStatus tracks the lead lifecycle
+enum LeadStatus {
+  LEAD_STATUS_UNSPECIFIED = 0;
+  LEAD_STATUS_CREATED = 1;
+  LEAD_STATUS_VALIDATED = 2;
+  LEAD_STATUS_SCORED = 3;
+  LEAD_STATUS_DISTRIBUTED = 4;
+  LEAD_STATUS_SOLD = 5;
+  LEAD_STATUS_REJECTED = 6;
+}
+
+// Vertical-specific data messages
+message AutoData {
+  string vin = 1;
+  int32 year = 2;
+  string make = 3;
+  string model = 4;
+  string trim = 5;
+  string usage_type = 6;
+  int32 annual_mileage = 7;
+}
+
+message HomeData {
+  int32 year_built = 1;
+  int32 square_feet = 2;
+  string construction_type = 3;
+  string roof_type = 4;
+  bool has_security_system = 5;
+  repeated string safety_features = 6;
+}
+
+message HealthData {
+  string date_of_birth = 1;
+  string gender = 2;
+  bool tobacco_use = 3;
+  repeated string pre_existing_conditions = 4;
+  string coverage_type = 5;
+  google.protobuf.Timestamp coverage_start = 6;
+}
+
+message LifeData {
+  string date_of_birth = 1;
+  string gender = 2;
+  bool tobacco_use = 3;
+  string coverage_amount = 4;
+  string policy_type = 5;
+  repeated string beneficiaries = 6;
+}
+
+message RentersData {
+  int32 personal_property_value = 1;
+  bool pets = 2;
+  string rental_type = 3;
+  repeated string valuables = 4;
+  bool has_security_system = 5;
+}
+
+message CommercialData {
+  string business_type = 1;
+  int32 annual_revenue = 2;
+  int32 num_employees = 3;
+  repeated string coverage_types = 4;
+  string industry_code = 5;
+  repeated string business_assets = 6;
+}
