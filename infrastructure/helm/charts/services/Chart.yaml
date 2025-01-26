@@ -1,0 +1,50 @@
+apiVersion: v2
+name: insurance-platform-services
+description: Enterprise-grade microservices deployment for the Multi-Vertical Insurance Lead Generation Platform supporting high availability, scalability, and real-time processing across lead generation, ML scoring, RTB, and validation services
+type: application
+version: 1.0.0
+appVersion: 1.0.0
+
+# External dependencies from Bitnami repository
+dependencies:
+  - name: mongodb
+    version: 13.9.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: mongodb.enabled
+    tags:
+      - database
+      - nosql
+
+  - name: redis
+    version: 17.11.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+    tags:
+      - cache
+      - session-store
+
+  - name: postgresql
+    version: 12.5.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+    tags:
+      - database
+      - sql
+
+maintainers:
+  - name: Platform Team
+    email: platform@insurance-platform.com
+
+keywords:
+  - insurance-platform
+  - microservices
+  - lead-generation
+  - ml-scoring
+  - rtb
+  - high-availability
+  - scalable
+
+annotations:
+  artifacthub.io/changes: Initial release of the insurance platform services chart
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/prerelease: "false"
