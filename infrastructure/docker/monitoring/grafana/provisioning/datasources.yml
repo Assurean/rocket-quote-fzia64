@@ -1,0 +1,84 @@
+# Grafana datasources configuration v1
+# Auto-provisioned datasources for metrics, traces and logs monitoring
+apiVersion: 1
+
+# List of data sources to be provisioned
+datasources:
+  # Prometheus - Primary metrics data source
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    version: 1
+    editable: false
+    jsonData:
+      # Optimized for <500ms response time monitoring
+      timeInterval: "15s"
+      queryTimeout: "30s"
+      httpMethod: POST
+      # Link exemplars to Jaeger traces
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: jaeger
+      prometheusType: Prometheus
+      prometheusVersion: 2.45.0
+      # Performance optimization settings
+      cacheLevel: High
+      disableRecordingRules: false
+      incrementalQueryOverlapWindow: "10m"
+
+  # Jaeger - Distributed tracing data source
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    uid: jaeger
+    version: 1
+    editable: false
+    jsonData:
+      # Enable service dependency visualization
+      nodeGraph:
+        enabled: true
+      # Link traces to logs in Elasticsearch
+      tracesToLogs:
+        datasourceUid: elasticsearch
+        tags: ["service", "error"]
+        mappedTags:
+          - key: service.name
+            value: service
+      search:
+        maxLookback: "24h"
+        maxLimit: 1000
+
+  # Elasticsearch - Centralized logging data source
+  - name: Elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    database: insurance-platform-*
+    version: 1
+    editable: false
+    jsonData:
+      timeField: "@timestamp"
+      esVersion: "8.0.0"
+      maxConcurrentShardRequests: 5
+      logMessageField: message
+      logLevelField: level
+      # Link logs to traces
+      dataLinks:
+        - field: trace_id
+          datasourceUid: jaeger
+          url: ""
+      # Index pattern with daily rotation
+      index: "insurance-platform-${__date:YYYY.MM}"
+      interval: Daily
+      timeInterval: "10s"
+    # Secure authentication and TLS configuration
+    secureJsonData:
+      basicAuth: true
+      basicAuthUser: ${ELASTIC_USER}
+      basicAuthPassword: ${ELASTIC_PASSWORD}
+      tlsCACert: ${ELASTIC_CA_CERT}
+      tlsClientCert: ${ELASTIC_CLIENT_CERT}
+      tlsClientKey: ${ELASTIC_CLIENT_KEY}
