@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: validation-service
+  namespace: default
+  labels:
+    app: validation-service
+    component: backend
+    tier: validation
+    version: v1
+    part-of: lead-generation-platform
+  annotations:
+    # Monitoring configuration
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+    prometheus.io/path: "/metrics"
+    
+    # Load balancer configuration
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-timeout: "30"
+    
+    # Service mesh and topology configuration
+    linkerd.io/inject: "enabled"
+    topology.kubernetes.io/zone: "multi-zone"
+    
+    # Health check configuration
+    health.check.path: "/health"
+    health.check.port: "3000"
+
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+      name: http
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: metrics
+  
+  selector:
+    app: validation-service
+    component: backend
+  
+  # Session affinity configuration for stable connections
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  
+  # Topology aware routing configuration
+  topologyKeys:
+    - "kubernetes.io/hostname"
+    - "topology.kubernetes.io/zone"
+    - "topology.kubernetes.io/region"
+    - "*"
+  
+  # Service availability configuration
+  publishNotReadyAddresses: false
+  externalTrafficPolicy: Local
