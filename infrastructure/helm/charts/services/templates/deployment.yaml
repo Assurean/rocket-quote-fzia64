@@ -1,0 +1,164 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.services.name }}
+  labels:
+    app: {{ .Values.services.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: backend
+    environment: {{ .Values.global.environment }}
+    region: {{ .Values.global.region }}
+  annotations:
+    kubernetes.io/change-cause: {{ .Values.global.deployment.changeCause }}
+    checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    prometheus.io/scrape: {{ .Values.global.monitoring.prometheus.scrape | quote }}
+    prometheus.io/path: {{ .Values.global.monitoring.prometheus.path | quote }}
+    prometheus.io/port: {{ .Values.global.monitoring.prometheus.port | quote }}
+
+spec:
+  replicas: {{ .Values.services.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  
+  selector:
+    matchLabels:
+      app: {{ .Values.services.name }}
+  
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.services.name }}
+        version: {{ .Values.services.image.tag }}
+        environment: {{ .Values.global.environment }}
+      annotations:
+        prometheus.io/scrape: {{ .Values.global.monitoring.prometheus.scrape | quote }}
+        prometheus.io/port: {{ .Values.global.monitoring.prometheus.port | quote }}
+        prometheus.io/path: {{ .Values.global.monitoring.prometheus.path | quote }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        {{- if .Values.global.monitoring.jaeger.enabled }}
+        jaeger-agent: {{ .Values.global.monitoring.jaeger.endpoint | quote }}
+        {{- end }}
+
+    spec:
+      serviceAccountName: {{ .Values.services.serviceAccount }}
+      securityContext:
+        {{- toYaml .Values.global.security.podSecurityContext | nindent 8 }}
+      
+      {{- if .Values.global.availability.podAntiAffinity }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Values.services.name }}
+              topologyKey: kubernetes.io/hostname
+      {{- end }}
+
+      {{- if .Values.global.availability.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml .Values.global.availability.topologySpreadConstraints | nindent 8 }}
+      {{- end }}
+
+      containers:
+      - name: {{ .Values.services.name }}
+        image: {{ .Values.global.image.registry }}/{{ .Values.services.image.repository }}:{{ .Values.services.image.tag | default .Values.global.image.tag }}
+        imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+        
+        ports:
+        - name: http
+          containerPort: {{ .Values.services.service.port }}
+          protocol: TCP
+        {{- if .Values.global.monitoring.prometheus.enabled }}
+        - name: metrics
+          containerPort: {{ .Values.global.monitoring.prometheus.port }}
+          protocol: TCP
+        {{- end }}
+        
+        resources:
+          {{- toYaml .Values.services.resources | nindent 12 }}
+        
+        env:
+        - name: NODE_ENV
+          value: {{ .Values.global.environment }}
+        - name: SERVICE_NAME
+          value: {{ .Values.services.name }}
+        {{- range $key, $value := .Values.services.config }}
+        - name: {{ $key | upper }}
+          valueFrom:
+            configMapKeyRef:
+              name: {{ $.Values.services.name }}-config
+              key: {{ $key }}
+        {{- end }}
+        
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.services.probes.liveness.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.services.probes.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.services.probes.liveness.periodSeconds }}
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.services.probes.readiness.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.services.probes.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.services.probes.readiness.periodSeconds }}
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        
+        startupProbe:
+          httpGet:
+            path: {{ .Values.services.probes.readiness.path }}
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 30
+
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        {{- if .Values.services.secrets }}
+        - name: secrets-volume
+          mountPath: /app/secrets
+          readOnly: true
+        {{- end }}
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: config-volume
+        configMap:
+          name: {{ .Values.services.name }}-config
+      {{- if .Values.services.secrets }}
+      - name: secrets-volume
+        secret:
+          secretName: {{ .Values.services.name }}-secrets
+      {{- end }}
+
+      {{- with .Values.global.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      terminationGracePeriodSeconds: 60
