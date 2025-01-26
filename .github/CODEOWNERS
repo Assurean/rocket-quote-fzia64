@@ -1,0 +1,56 @@
+# Ensures security oversight on all changes
+* @lead-architects @security-team
+
+# Lead service core functionality
+src/backend/services/lead-service/** @backend-team @lead-service-maintainers @security-team
+
+# Campaign management service
+src/backend/services/campaign-service/** @backend-team @campaign-service-maintainers @security-team
+
+# Machine learning scoring service
+src/backend/services/ml-service/** @ml-team @data-scientists @security-team
+
+# Real-time bidding service
+src/backend/services/rtb-service/** @backend-team @rtb-specialists @security-team
+
+# Data validation service
+src/backend/services/validation-service/** @backend-team @validation-service-maintainers @security-team
+
+# Consumer-facing lead generation application
+src/web/apps/consumer/** @frontend-team @consumer-app-maintainers @security-team
+
+# Buyer portal application
+src/web/apps/portal/** @frontend-team @portal-app-maintainers @security-team
+
+# Shared UI components and utilities
+src/web/packages/shared/** @frontend-team @shared-components-maintainers
+
+# RTB frontend integration package
+src/web/packages/rtb/** @frontend-team @rtb-specialists @security-team
+
+# Analytics and reporting components
+src/web/packages/analytics/** @frontend-team @analytics-maintainers @security-team
+
+# Infrastructure and deployment configuration
+infrastructure/** @devops-team @security-team @cloud-architects
+
+# CI/CD workflow configurations
+.github/workflows/** @devops-team @ci-maintainers @security-team
+
+# Backend test suites
+src/backend/**/tests/** @qa-team @backend-team @test-automation-specialists
+
+# Frontend test suites
+src/web/**/tests/** @qa-team @frontend-team @test-automation-specialists
+
+# Security-related configurations and policies
+**/security/** @security-team @compliance-team
+
+# Database schemas and migrations
+**/database/** @database-team @backend-team @security-team
+
+# Protocol buffer definitions
+**/*.proto @api-team @backend-team @security-team
+
+# OpenAPI specifications
+**/openapi/** @api-team @backend-team @security-team
