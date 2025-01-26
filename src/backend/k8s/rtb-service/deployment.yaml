@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtb-service
+  namespace: default
+  labels:
+    app: rtb-service
+    component: bidding
+    part-of: insurance-platform
+spec:
+  # Configure 3 replicas for high availability and load distribution
+  replicas: 3
+  
+  # RollingUpdate strategy for zero-downtime deployments
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+      
+  # Pod selector matching service selector
+  selector:
+    matchLabels:
+      app: rtb-service
+      component: bidding
+      
+  template:
+    metadata:
+      labels:
+        app: rtb-service
+        component: bidding
+      annotations:
+        # Prometheus monitoring configuration
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        
+    spec:
+      containers:
+      - name: rtb-service
+        # Image will be templated by Helm
+        image: "{{.Values.image.repository}}/rtb-service:{{.Values.image.tag}}"
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+          
+        # Resource limits based on requirements
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+            
+        # Health checking
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          
+        # Enhanced security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          
+        # Mount configuration from ConfigMap
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/rtb-service
+          readOnly: true
+          
+      volumes:
+      - name: config-volume
+        configMap:
+          name: rtb-service-config
+          
+      # Security policy
+      securityContext:
+        fsGroup: 1000
+        
+      # Ensure high availability across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - rtb-service
+              topologyKey: kubernetes.io/hostname
