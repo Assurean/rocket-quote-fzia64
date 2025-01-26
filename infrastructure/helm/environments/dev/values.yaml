@@ -1,0 +1,161 @@
+# Development Environment Helm Values Configuration
+# Version: 1.0.0
+# Environment: Development
+
+global:
+  environment: dev
+  
+  image:
+    registry: 123456789012.dkr.ecr.us-east-1.amazonaws.com
+    pullPolicy: Always
+    tag: latest
+
+  monitoring:
+    enabled: true
+    debug: true
+    prometheus:
+      scrape: true
+      path: /metrics
+      port: 9090
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    jaeger:
+      enabled: true
+      endpoint: http://jaeger-collector:14268/api/traces
+      samplingRate: 1.0
+    logging:
+      level: debug
+      format: json
+      output: 
+        - console
+        - file
+      fileRotation:
+        maxSize: "100M"
+        maxFiles: "5"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+api-gateway:
+  kong:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: false
+    debug:
+      enabled: true
+      adminApi:
+        enabled: true
+        port: 8001
+
+  config:
+    plugins:
+      - name: cors
+        config:
+          origins: ["*"]
+          methods: 
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+            - PATCH
+          headers: ["*"]
+          exposed_headers: ["*"]
+          credentials: true
+          max_age: 3600
+      - name: rate-limiting
+        config:
+          minute: 1000
+          policy: local
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Environment: development"
+
+services:
+  lead:
+    replicaCount: 1
+    autoscaling:
+      enabled: false
+    config:
+      mongodb:
+        uri: mongodb://mongodb-dev:27017/leads
+        debug: true
+        poolSize: 5
+      redis:
+        url: redis://redis-dev:6379
+        debug: true
+      logLevel: debug
+      mockServices:
+        enabled: true
+        endpoints:
+          validation: http://mock-validation:8080
+          scoring: http://mock-scoring:8080
+
+  ml:
+    replicaCount: 1
+    autoscaling:
+      enabled: false
+    config:
+      modelPath: /models/dev
+      scoringThresholds:
+        min: 0.3
+        target: 0.6
+      debug:
+        enabled: true
+        modelMetrics: true
+        predictionLogs: true
+
+  rtb:
+    replicaCount: 1
+    autoscaling:
+      enabled: false
+    config:
+      auctionTimeout: 2s
+      bidderEndpoints:
+        mock: http://mock-bidder:8080
+      debug:
+        enabled: true
+        auctionLogs: true
+        bidderResponses: true
+
+  validation:
+    replicaCount: 1
+    autoscaling:
+      enabled: false
+    config:
+      apiKeys:
+        mockProvider: test-key
+      debug:
+        enabled: true
+        requestLogs: true
+        responseLogs: true
+
+  campaign:
+    replicaCount: 1
+    autoscaling:
+      enabled: false
+    config:
+      postgres:
+        host: postgres-dev
+        port: 5432
+        database: campaigns_dev
+        debug: true
+        poolSize: 5
+      mockData:
+        enabled: true
+        seedCampaigns: true
