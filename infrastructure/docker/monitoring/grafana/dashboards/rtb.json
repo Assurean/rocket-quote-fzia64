@@ -1,0 +1,263 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "datasource": "Prometheus",
+        "enable": true,
+        "expr": "changes(rtb_service_version[1m]) > 0",
+        "name": "Deployments",
+        "tagKeys": ["version", "environment"],
+        "titleFormat": "RTB Service Deployment"
+      }
+    ]
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": "rtb-monitoring",
+  "links": [],
+  "panels": [
+    {
+      "title": "RTB Response Time Distribution",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rtb_bid_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "95th Percentile"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(rtb_bid_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "Median"
+        }
+      ],
+      "alert": {
+        "name": "High Latency Alert",
+        "conditions": [
+          {
+            "type": "query",
+            "query": {
+              "params": ["A", "5m", "now"]
+            },
+            "reducer": {
+              "type": "avg",
+              "params": []
+            },
+            "evaluator": {
+              "type": "gt",
+              "params": [0.5]
+            }
+          }
+        ],
+        "frequency": "1m",
+        "handler": 1
+      }
+    },
+    {
+      "title": "Bid Success Rate",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rtb_bids_success_total[5m])) / sum(rate(rtb_bids_total[5m])) * 100",
+          "legendFormat": "Success Rate"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "title": "Average Bid Price",
+      "type": "gauge",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "avg(rtb_bid_price_dollars)",
+          "legendFormat": "Avg Bid Price"
+        }
+      ],
+      "options": {
+        "maxValue": 100,
+        "minValue": 0,
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true,
+        "thresholds": [
+          { "color": "red", "value": 0 },
+          { "color": "yellow", "value": 20 },
+          { "color": "green", "value": 50 }
+        ]
+      }
+    },
+    {
+      "title": "Partner Performance Heatmap",
+      "type": "heatmap",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "rate(rtb_partner_response_duration_seconds_sum[5m]) / rate(rtb_partner_response_duration_seconds_count[5m])",
+          "legendFormat": "{{partner}}"
+        }
+      ],
+      "options": {
+        "calculate": true,
+        "calculation": "mean",
+        "color": {
+          "mode": "spectrum",
+          "scheme": "RdYlBu"
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-9
+        }
+      }
+    },
+    {
+      "title": "RTB Error Rate",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rtb_errors_total[5m])) / sum(rate(rtb_bids_total[5m])) * 100",
+          "legendFormat": "Error Rate %"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["rtb", "bidding", "monetization", "performance"],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(rtb_bids_total, partner)",
+        "hide": 0,
+        "includeAll": true,
+        "name": "partner",
+        "options": [],
+        "query": "label_values(rtb_bids_total, partner)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "auto": false,
+        "auto_count": 30,
+        "auto_min": "10s",
+        "current": {
+          "selected": false,
+          "text": "5m",
+          "value": "5m"
+        },
+        "hide": 0,
+        "name": "interval",
+        "options": [
+          {
+            "selected": false,
+            "text": "1m",
+            "value": "1m"
+          },
+          {
+            "selected": true,
+            "text": "5m",
+            "value": "5m"
+          },
+          {
+            "selected": false,
+            "text": "15m",
+            "value": "15m"
+          },
+          {
+            "selected": false,
+            "text": "30m",
+            "value": "30m"
+          },
+          {
+            "selected": false,
+            "text": "1h",
+            "value": "1h"
+          },
+          {
+            "selected": false,
+            "text": "6h",
+            "value": "6h"
+          }
+        ],
+        "query": "1m,5m,15m,30m,1h,6h",
+        "refresh": 2,
+        "type": "interval"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "browser",
+  "title": "RTB System Monitoring",
+  "uid": "rtb-dashboard",
+  "version": 1,
+  "weekStart": ""
+}
