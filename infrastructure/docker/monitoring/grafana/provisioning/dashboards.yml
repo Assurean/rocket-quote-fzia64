@@ -1,0 +1,146 @@
+# Grafana dashboard provisioning configuration v1
+# Manages automatic loading of dashboards with version control and security
+apiVersion: 1
+
+# Providers define where dashboards are loaded from and how they are handled
+providers:
+  # Default provider for file-based dashboard provisioning
+  - name: 'default'
+    type: file
+    # Disable dashboard deletion through UI to prevent accidental removal
+    disableDeletion: true
+    # Check for dashboard updates every 30 seconds
+    updateIntervalSeconds: 30
+    # Disable dashboard updates through UI to maintain version control
+    allowUiUpdates: false
+    options:
+      # Path where dashboard JSON files are stored
+      path: /etc/grafana/provisioning/dashboards
+      # Use folder structure from filesystem
+      foldersFromFilesStructure: true
+
+    # Version control settings for dashboard management
+    version_control:
+      enabled: true
+      history_size: 10
+      backup_location: /var/lib/grafana/dashboard_backups
+
+    # Security settings for dashboard access
+    security:
+      enforce_signed_dashboards: true
+      allowed_users: ['admin', 'dashboard_manager']
+      audit_log: true
+
+    # Default folder settings
+    folder_config:
+      - name: "Lead Generation"
+        pattern: "**/leads*.json"
+        folder_uid: "leads-monitoring"
+      - name: "RTB Performance"
+        pattern: "**/rtb*.json"
+        folder_uid: "rtb-monitoring"
+      - name: "Service Health"
+        pattern: "**/services*.json"
+        folder_uid: "service-monitoring"
+
+    # Dashboard defaults applied to all loaded dashboards
+    defaults:
+      editable: false
+      refresh: "1m"
+      time_options: ["5m", "15m", "30m", "1h", "3h", "6h", "12h", "24h", "2d", "7d"]
+      timezone: "browser"
+
+    # Dashboard validation rules
+    validation:
+      # Enforce minimum refresh interval
+      min_refresh_interval: "10s"
+      # Require specific tags
+      required_tags: ["vertical", "monitoring"]
+      # Maximum number of panels
+      max_panels: 50
+      # Required annotations
+      required_annotations: ["version", "owner"]
+
+    # High availability configuration
+    high_availability:
+      enabled: true
+      mode: "active-passive"
+      failover_timeout: "30s"
+      sync_interval: "1m"
+
+    # Performance optimization
+    performance:
+      cache_ttl: "5m"
+      max_dashboard_age: "24h"
+      concurrent_loads: 5
+      batch_size: 100
+
+    # Error handling
+    error_handling:
+      max_retries: 3
+      retry_interval: "10s"
+      ignore_pattern: "temp_*"
+
+    # Monitoring and alerting
+    monitoring:
+      enabled: true
+      metrics_prefix: "grafana_dashboards"
+      include_performance_metrics: true
+      alert_on_errors: true
+
+    # Backup configuration
+    backup:
+      enabled: true
+      interval: "24h"
+      retention: "30d"
+      location: "/var/lib/grafana/dashboard_backups"
+      compress: true
+
+    # Dashboard organization
+    organization:
+      # Default folder structure
+      folders:
+        - name: "Lead Generation"
+          uid: "leads"
+          permissions:
+            - role: "Viewer"
+              permission: "View"
+            - role: "Editor"
+              permission: "Edit"
+        - name: "RTB Performance"
+          uid: "rtb"
+          permissions:
+            - role: "Viewer"
+              permission: "View"
+            - role: "Editor"
+              permission: "Edit"
+        - name: "Service Health"
+          uid: "services"
+          permissions:
+            - role: "Viewer"
+              permission: "View"
+            - role: "Editor"
+              permission: "Edit"
+
+      # Tag management
+      tags:
+        - name: "vertical"
+          required: true
+          allowed_values: ["auto", "home", "health", "life", "renters", "commercial"]
+        - name: "monitoring"
+          required: true
+        - name: "sla"
+          required: false
+
+    # Compliance and audit
+    compliance:
+      enable_audit_log: true
+      retention_days: 90
+      required_annotations:
+        - "owner"
+        - "version"
+        - "last_modified"
+      restricted_variables:
+        - "apiKey"
+        - "password"
+        - "secret"
