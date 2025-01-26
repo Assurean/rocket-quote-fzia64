@@ -1,0 +1,71 @@
+# Logstash configuration for Multi-Vertical Insurance Lead Generation Platform
+# Version: 8.0+
+# Purpose: Centralized log collection, processing and forwarding with enhanced security and monitoring
+
+# Node Settings
+node.name: ${LOGSTASH_NODE_NAME}
+node.host: "0.0.0.0"
+
+# Path Settings
+path:
+  data: "/usr/share/logstash/data"
+  logs: "/usr/share/logstash/logs"
+  config: "/usr/share/logstash/config"
+  pipeline: "/usr/share/logstash/pipeline"
+
+# Pipeline Settings
+pipeline:
+  workers: 2
+  batch:
+    size: 125
+    delay: 50
+  ordered: true
+
+# Queue Settings
+queue:
+  type: "persisted"
+  max_bytes: "1gb"
+
+# Monitoring Settings
+monitoring:
+  enabled: true
+  elasticsearch:
+    hosts: ["${ELASTICSEARCH_HOSTS}"]
+    username: "${ELASTICSEARCH_USERNAME}"
+    password: "${ELASTICSEARCH_PASSWORD}"
+    ssl:
+      enabled: true
+      verification_mode: "certificate"
+  collection:
+    interval: "10s"
+
+# Logging Settings
+log:
+  level: "info"
+  format:
+    type: "json"
+
+# X-Pack Settings
+xpack:
+  monitoring:
+    enabled: true
+    collection:
+      enabled: true
+      interval: "10s"
+  management:
+    enabled: true
+    pipeline:
+      id: ["${LOGSTASH_PIPELINE_ID}"]
+
+# Dead Letter Queue Settings
+dead_letter_queue:
+  enable: true
+  max_bytes: "1gb"
+
+# API Settings
+api:
+  enabled: true
+  host: "0.0.0.0"
+  port: 9600
+  ssl:
+    enabled: true
