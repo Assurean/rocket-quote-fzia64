@@ -1,0 +1,112 @@
+# Istio VirtualService v1alpha3 configuration for insurance platform routing
+# Implements traffic management, resilience patterns and monitoring
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: insurance-platform-vs
+  namespace: default
+  labels:
+    app: insurance-platform
+    component: routing
+    version: v1
+  annotations:
+    monitoring.istio.io/scrape: "true"
+    monitoring.istio.io/port: "15020"
+    sidecar.istio.io/inject: "true"
+
+spec:
+  hosts:
+    - api.insurance-platform.com
+  gateways:
+    - insurance-platform-gateway
+  http:
+    # Lead Service Routes
+    - match:
+        - uri:
+            prefix: /api/v1/leads
+          headers:
+            content-type:
+              exact: application/json
+      route:
+        - destination:
+            host: lead-service
+            port:
+              number: 80
+            subset: v1
+          weight: 100
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: connect-failure,refused-stream,unavailable,5xx,gateway-error
+      timeout: 5s
+      fault:
+        delay:
+          percentage:
+            value: 0.1
+          fixedDelay: 100ms
+      corsPolicy:
+        allowOrigins:
+          - exact: https://insurance-platform.com
+        allowMethods:
+          - POST
+          - GET
+          - OPTIONS
+        allowCredentials: true
+        maxAge: 24h
+
+    # Campaign Service Routes  
+    - match:
+        - uri:
+            prefix: /api/v1/campaigns
+          headers:
+            content-type:
+              exact: application/json
+      route:
+        - destination:
+            host: campaign-service
+            port:
+              number: 80
+            subset: v1
+          weight: 100
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: connect-failure,refused-stream,unavailable,5xx,gateway-error
+      timeout: 5s
+      corsPolicy:
+        allowOrigins:
+          - exact: https://insurance-platform.com
+        allowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        allowCredentials: true
+        maxAge: 24h
+
+---
+# Traffic Management Policy
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: insurance-platform-destination
+  namespace: default
+spec:
+  host: "*.insurance-platform.com"
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 1000
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 1024
+        maxRequestsPerConnection: 10000
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
