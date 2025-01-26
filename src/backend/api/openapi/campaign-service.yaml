@@ -1,0 +1,253 @@
+// campaign-service.ts
+// Dependencies:
+// @types/express: ^4.17.21
+// express: ^4.18.2
+// @types/uuid: ^9.0.7
+// uuid: ^9.0.1
+// joi: ^17.11.0
+// @types/jsonwebtoken: ^9.0.5
+// jsonwebtoken: ^9.0.2
+// mongoose: ^8.0.3
+
+import express, { Request, Response, NextFunction } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import Joi from 'joi';
+import jwt from 'jsonwebtoken';
+import mongoose, { Schema, Document } from 'mongoose';
+
+// Types
+interface Campaign extends Document {
+  id: string;
+  buyerId: string;
+  name: string;
+  vertical: 'AUTO' | 'HOME' | 'HEALTH' | 'LIFE' | 'RENTERS' | 'COMMERCIAL';
+  filters: {
+    states?: string[];
+    ageRange?: {
+      min?: number;
+      max?: number;
+    };
+    creditScore?: Array<'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR'>;
+  };
+  maxCpl: number;
+  dailyBudget: number;
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'DELETED';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// MongoDB Schema
+const campaignSchema = new Schema<Campaign>({
+  id: { type: String, required: true, unique: true, default: uuidv4 },
+  buyerId: { type: String, required: true, index: true },
+  name: { type: String, required: true, minlength: 1, maxlength: 100 },
+  vertical: { 
+    type: String, 
+    required: true,
+    enum: ['AUTO', 'HOME', 'HEALTH', 'LIFE', 'RENTERS', 'COMMERCIAL']
+  },
+  filters: {
+    states: [{ 
+      type: String, 
+      minlength: 2, 
+      maxlength: 2, 
+      uppercase: true 
+    }],
+    ageRange: {
+      min: { type: Number, min: 18 },
+      max: { type: Number, max: 100 }
+    },
+    creditScore: [{
+      type: String,
+      enum: ['EXCELLENT', 'GOOD', 'FAIR', 'POOR']
+    }]
+  },
+  maxCpl: { type: Number, required: true, min: 0 },
+  dailyBudget: { type: Number, required: true, min: 0 },
+  status: {
+    type: String,
+    required: true,
+    enum: ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED', 'DELETED'],
+    default: 'DRAFT'
+  },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+// Model
+const CampaignModel = mongoose.model<Campaign>('Campaign', campaignSchema);
+
+// Validation Schemas
+const createCampaignSchema = Joi.object({
+  buyerId: Joi.string().required(),
+  name: Joi.string().min(1).max(100).required(),
+  vertical: Joi.string().valid('AUTO', 'HOME', 'HEALTH', 'LIFE', 'RENTERS', 'COMMERCIAL').required(),
+  filters: Joi.object({
+    states: Joi.array().items(Joi.string().length(2).uppercase()),
+    ageRange: Joi.object({
+      min: Joi.number().min(18),
+      max: Joi.number().max(100)
+    }),
+    creditScore: Joi.array().items(Joi.string().valid('EXCELLENT', 'GOOD', 'FAIR', 'POOR'))
+  }).required(),
+  maxCpl: Joi.number().min(0).required(),
+  dailyBudget: Joi.number().min(0).required()
+});
+
+// Middleware
+const authenticate = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({
+      code: 'UNAUTHORIZED',
+      message: 'Missing or invalid authorization token'
+    });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret');
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      code: 'UNAUTHORIZED',
+      message: 'Invalid authorization token'
+    });
+  }
+};
+
+// Campaign Service Class
+export class CampaignService {
+  async listCampaigns(req: Request, res: Response) {
+    try {
+      const { buyerId, cursor, limit = 20, vertical, status } = req.query;
+      
+      if (!buyerId) {
+        return res.status(400).json({
+          code: 'INVALID_REQUEST',
+          message: 'buyerId is required'
+        });
+      }
+
+      const query: any = { buyerId };
+      if (vertical) query.vertical = vertical;
+      if (status) query.status = status;
+      if (cursor) query._id = { $gt: cursor };
+
+      const campaigns = await CampaignModel
+        .find(query)
+        .limit(Number(limit))
+        .sort({ createdAt: -1 });
+
+      const totalCount = await CampaignModel.countDocuments(query);
+      const nextCursor = campaigns.length === Number(limit) ? 
+        campaigns[campaigns.length - 1]._id : null;
+
+      res.json({
+        items: campaigns,
+        nextCursor,
+        totalCount
+      });
+    } catch (error) {
+      res.status(500).json({
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred'
+      });
+    }
+  }
+
+  async createCampaign(req: Request, res: Response) {
+    try {
+      const { error, value } = createCampaignSchema.validate(req.body);
+      if (error) {
+        return res.status(400).json({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request body',
+          errors: error.details.map(detail => ({
+            field: detail.path.join('.'),
+            message: detail.message
+          }))
+        });
+      }
+
+      const campaign = new CampaignModel({
+        ...value,
+        id: uuidv4()
+      });
+
+      await campaign.save();
+
+      res.status(201).json(campaign);
+    } catch (error) {
+      res.status(500).json({
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred'
+      });
+    }
+  }
+
+  async getCampaign(req: Request, res: Response) {
+    try {
+      const campaign = await CampaignModel.findOne({ id: req.params.id });
+      if (!campaign) {
+        return res.status(404).json({
+          code: 'NOT_FOUND',
+          message: 'Campaign not found'
+        });
+      }
+
+      res.json(campaign);
+    } catch (error) {
+      res.status(500).json({
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred'
+      });
+    }
+  }
+
+  async updateCampaign(req: Request, res: Response) {
+    try {
+      const campaign = await CampaignModel.findOne({ id: req.params.id });
+      if (!campaign) {
+        return res.status(404).json({
+          code: 'NOT_FOUND',
+          message: 'Campaign not found'
+        });
+      }
+
+      // Prevent modification of certain fields
+      delete req.body.id;
+      delete req.body.buyerId;
+      delete req.body.createdAt;
+
+      const updatedCampaign = await CampaignModel.findOneAndUpdate(
+        { id: req.params.id },
+        { 
+          ...req.body,
+          updatedAt: new Date()
+        },
+        { new: true }
+      );
+
+      res.json(updatedCampaign);
+    } catch (error) {
+      res.status(500).json({
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred'
+      });
+    }
+  }
+}
+
+// Express Router Setup
+const router = express.Router();
+const campaignService = new CampaignService();
+
+router.use(authenticate);
+router.get('/campaigns', campaignService.listCampaigns.bind(campaignService));
+router.post('/campaigns', campaignService.createCampaign.bind(campaignService));
+router.get('/campaigns/:id', campaignService.getCampaign.bind(campaignService));
+router.patch('/campaigns/:id', campaignService.updateCampaign.bind(campaignService));
+
+export default router;
