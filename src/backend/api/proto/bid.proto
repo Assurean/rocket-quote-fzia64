@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package insurance.rtb.v1;
+
+import "google/protobuf/timestamp.proto";  // v3.0.0
+import "google/protobuf/wrappers.proto";   // v3.0.0
+import "../proto/lead.proto";
+
+option go_package = "github.com/insurance/rtb/v1";
+option java_multiple_files = true;
+option optimize_for = SPEED;
+
+// RTBService provides real-time bidding functionality for click wall monetization
+service RTBService {
+  // RequestBids requests bids from RTB partners with configurable timeout
+  rpc RequestBids(BidRequest) returns (BidResponse) {}
+  
+  // TrackClick records and validates click events on bid offers
+  rpc TrackClick(ClickEvent) returns (ClickResponse) {}
+}
+
+// UserData contains targeting information for bid requests
+message UserData {
+  string ip_address = 1;
+  string user_agent = 2;
+  string zip_code = 3;
+  map<string, string> demographics = 4;
+  map<string, string> interests = 5;
+}
+
+// Creative represents the ad content for display
+message Creative {
+  string headline = 1;
+  string description = 2;
+  string image_url = 3;
+  string display_url = 4;
+  repeated string size_requirements = 5;
+  map<string, string> tracking_pixels = 6;
+}
+
+// BidRequest contains all data needed for RTB partners to bid
+message BidRequest {
+  string request_id = 1;
+  string lead_id = 2;
+  string vertical = 3;
+  UserData user_data = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  int32 timeout_ms = 6;
+  double floor_price = 7;
+  repeated string allowed_partner_ids = 8;
+  map<string, string> targeting_criteria = 9;
+}
+
+// Bid represents a single bid from an RTB partner
+message Bid {
+  string bid_id = 1;
+  string partner_id = 2;
+  double bid_price = 3;
+  double normalized_price = 4;
+  string click_url = 5;
+  Creative creative_data = 6;
+  google.protobuf.Timestamp expiration = 7;
+  map<string, string> targeting_attributes = 8;
+  map<string, string> tracking_data = 9;
+}
+
+// BidResponse aggregates all valid bids for a request
+message BidResponse {
+  string request_id = 1;
+  repeated Bid bids = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  int32 total_bids_received = 4;
+  int32 valid_bids_count = 5;
+  repeated string error_codes = 6;
+  BidMetrics metrics = 7;
+}
+
+// BidMetrics tracks RTB performance metrics
+message BidMetrics {
+  int32 partner_timeouts = 1;
+  int32 invalid_bids = 2;
+  double average_bid_price = 3;
+  double highest_bid = 4;
+  google.protobuf.Timestamp processing_start = 5;
+  google.protobuf.Timestamp processing_end = 6;
+}
+
+// ClickEvent records user interactions with bid offers
+message ClickEvent {
+  string click_id = 1;
+  string bid_id = 2;
+  string lead_id = 3;
+  google.protobuf.Timestamp clicked_at = 4;
+  UserData user_data = 5;
+  string ip_address = 6;
+  string user_agent = 7;
+  map<string, string> fraud_signals = 8;
+  map<string, string> conversion_data = 9;
+}
+
+// ClickResponse confirms click tracking status
+message ClickResponse {
+  string click_id = 1;
+  ClickStatus status = 2;
+  string error_message = 3;
+  google.protobuf.Timestamp processed_at = 4;
+  bool fraud_detected = 5;
+  map<string, string> validation_results = 6;
+}
+
+// ClickStatus represents the state of a click event
+enum ClickStatus {
+  CLICK_STATUS_UNSPECIFIED = 0;
+  CLICK_STATUS_VALID = 1;
+  CLICK_STATUS_INVALID = 2;
+  CLICK_STATUS_SUSPICIOUS = 3;
+  CLICK_STATUS_ERROR = 4;
+}
+
+// ErrorCode enumerates possible RTB error conditions
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_TIMEOUT = 1;
+  ERROR_CODE_INVALID_BID = 2;
+  ERROR_CODE_NO_PARTNERS = 3;
+  ERROR_CODE_BELOW_FLOOR = 4;
+  ERROR_CODE_PARTNER_ERROR = 5;
+}
