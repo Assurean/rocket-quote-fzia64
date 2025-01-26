@@ -1,0 +1,46 @@
+apiVersion: v2
+name: api-gateway
+description: Enterprise-grade Kong API Gateway deployment for the Multi-Vertical Insurance Lead Generation Platform, featuring high availability, automated TLS management, and comprehensive security controls
+type: application
+version: 1.0.0
+appVersion: "2.20.1"
+
+# Dependencies
+dependencies:
+  - name: kong
+    version: 2.20.1
+    repository: https://charts.konghq.com
+    condition: kong.enabled
+    tags:
+      - api-gateway
+      - load-balancer
+      - security
+
+  - name: cert-manager
+    version: 1.12.0
+    repository: https://charts.jetstack.io
+    condition: certManager.enabled
+    tags:
+      - security
+      - tls
+      - certificates
+
+# Maintainers
+maintainers:
+  - name: Platform Team
+    email: platform@insurance-platform.com
+
+# Keywords for chart discovery
+keywords:
+  - api-gateway
+  - kong
+  - insurance-platform
+  - microservices
+  - high-availability
+  - security
+
+# Artifact Hub annotations
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/prerelease: "false"
+  artifacthub.io/containsSecurityUpdates: "true"
