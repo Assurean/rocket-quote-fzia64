@@ -1,0 +1,347 @@
+import express, { Request, Response, NextFunction } from 'express'; // ^4.18.2
+import { v4 as uuidv4 } from 'uuid'; // ^9.0.0
+import Joi from 'joi'; // ^17.9.2
+import rateLimit from 'express-rate-limit'; // ^6.9.0
+import jwt from 'jsonwebtoken'; // ^9.0.1
+import { performance } from 'perf_hooks';
+import { Redis } from 'ioredis'; // ^5.3.2
+import { Logger } from 'winston'; // ^3.10.0
+
+// Initialize Redis client for caching
+const redis = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: Number(process.env.REDIS_PORT) || 6379,
+  password: process.env.REDIS_PASSWORD,
+  retryStrategy: (times: number) => Math.min(times * 50, 2000),
+});
+
+// Validation schemas using Joi
+const contactInfoSchema = Joi.object({
+  email: Joi.string().email().required(),
+  phone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
+  firstName: Joi.string(),
+  lastName: Joi.string()
+});
+
+const addressInfoSchema = Joi.object({
+  street: Joi.string(),
+  city: Joi.string(),
+  state: Joi.string().pattern(/^[A-Z]{2}$/),
+  zipCode: Joi.string().pattern(/^\d{5}(-\d{4})?$/).required()
+});
+
+const insuranceInfoSchema = Joi.object({
+  vertical: Joi.string().valid('auto', 'home', 'life', 'health', 'renters', 'commercial').required(),
+  currentCarrier: Joi.string(),
+  policyExpiration: Joi.date().iso()
+});
+
+const validationRequestSchema = Joi.object({
+  requestId: Joi.string().uuid().required(),
+  contactInfo: contactInfoSchema.required(),
+  addressInfo: addressInfoSchema,
+  insuranceInfo: insuranceInfoSchema.required()
+});
+
+const batchValidationRequestSchema = Joi.object({
+  batchId: Joi.string().uuid().required(),
+  leads: Joi.array().items(validationRequestSchema).max(100).required()
+});
+
+// Rate limiting middleware
+const singleValidationLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute
+  message: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded' }
+});
+
+const batchValidationLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 batch requests per minute
+  message: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded' }
+});
+
+// Authentication middleware
+const authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({
+      code: 'UNAUTHORIZED',
+      message: 'Missing or invalid authentication token'
+    });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret');
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({
+      code: 'UNAUTHORIZED',
+      message: 'Invalid authentication token'
+    });
+  }
+};
+
+// Validation service class
+class ValidationService {
+  private logger: Logger;
+
+  constructor(logger: Logger) {
+    this.logger = logger;
+  }
+
+  async validateLead(data: any): Promise<any> {
+    const startTime = performance.now();
+    
+    try {
+      // Check cache first
+      const cacheKey = `validation:${data.requestId}`;
+      const cachedResult = await redis.get(cacheKey);
+      if (cachedResult) {
+        return {
+          ...JSON.parse(cachedResult),
+          performance: {
+            processingTime: performance.now() - startTime,
+            validationSource: 'cache',
+            cachingStatus: 'hit'
+          }
+        };
+      }
+
+      // Perform validation
+      const validationResults = [];
+      let isValid = true;
+
+      // Contact info validation
+      const contactValidation = await this.validateContactInfo(data.contactInfo);
+      validationResults.push(...contactValidation.results);
+      isValid = isValid && contactValidation.isValid;
+
+      // Address info validation if present
+      if (data.addressInfo) {
+        const addressValidation = await this.validateAddressInfo(data.addressInfo);
+        validationResults.push(...addressValidation.results);
+        isValid = isValid && addressValidation.isValid;
+      }
+
+      // Insurance info validation
+      const insuranceValidation = await this.validateInsuranceInfo(data.insuranceInfo);
+      validationResults.push(...insuranceValidation.results);
+      isValid = isValid && insuranceValidation.isValid;
+
+      const result = {
+        requestId: data.requestId,
+        isValid,
+        validationResults,
+        performance: {
+          processingTime: performance.now() - startTime,
+          validationSource: 'realtime',
+          cachingStatus: 'miss'
+        }
+      };
+
+      // Cache the result
+      await redis.setex(cacheKey, 300, JSON.stringify(result)); // Cache for 5 minutes
+
+      return result;
+    } catch (error) {
+      this.logger.error('Validation error:', error);
+      throw error;
+    }
+  }
+
+  async validateBatch(data: any): Promise<any> {
+    const startTime = performance.now();
+    
+    try {
+      const results = await Promise.all(
+        data.leads.map((lead: any) => this.validateLead(lead))
+      );
+
+      const summary = {
+        totalProcessed: results.length,
+        validCount: results.filter((r: any) => r.isValid).length,
+        invalidCount: results.filter((r: any) => !r.isValid).length,
+        processingTime: performance.now() - startTime
+      };
+
+      return {
+        batchId: data.batchId,
+        results,
+        summary
+      };
+    } catch (error) {
+      this.logger.error('Batch validation error:', error);
+      throw error;
+    }
+  }
+
+  private async validateContactInfo(contactInfo: any): Promise<any> {
+    const results = [];
+    let isValid = true;
+
+    // Email validation
+    if (!this.isValidEmail(contactInfo.email)) {
+      results.push({
+        field: 'email',
+        isValid: false,
+        errorCode: 'INVALID_EMAIL',
+        errorMessage: 'Invalid email format'
+      });
+      isValid = false;
+    }
+
+    // Phone validation
+    if (!this.isValidPhone(contactInfo.phone)) {
+      results.push({
+        field: 'phone',
+        isValid: false,
+        errorCode: 'INVALID_PHONE',
+        errorMessage: 'Invalid phone format'
+      });
+      isValid = false;
+    }
+
+    return { isValid, results };
+  }
+
+  private async validateAddressInfo(addressInfo: any): Promise<any> {
+    const results = [];
+    let isValid = true;
+
+    // ZIP code validation
+    if (!this.isValidZipCode(addressInfo.zipCode)) {
+      results.push({
+        field: 'zipCode',
+        isValid: false,
+        errorCode: 'INVALID_ZIP',
+        errorMessage: 'Invalid ZIP code format'
+      });
+      isValid = false;
+    }
+
+    // State validation if present
+    if (addressInfo.state && !this.isValidState(addressInfo.state)) {
+      results.push({
+        field: 'state',
+        isValid: false,
+        errorCode: 'INVALID_STATE',
+        errorMessage: 'Invalid state code'
+      });
+      isValid = false;
+    }
+
+    return { isValid, results };
+  }
+
+  private async validateInsuranceInfo(insuranceInfo: any): Promise<any> {
+    const results = [];
+    let isValid = true;
+
+    // Vertical validation
+    if (!['auto', 'home', 'life', 'health', 'renters', 'commercial'].includes(insuranceInfo.vertical)) {
+      results.push({
+        field: 'vertical',
+        isValid: false,
+        errorCode: 'INVALID_VERTICAL',
+        errorMessage: 'Invalid insurance vertical'
+      });
+      isValid = false;
+    }
+
+    // Policy expiration validation if present
+    if (insuranceInfo.policyExpiration && !this.isValidDate(insuranceInfo.policyExpiration)) {
+      results.push({
+        field: 'policyExpiration',
+        isValid: false,
+        errorCode: 'INVALID_DATE',
+        errorMessage: 'Invalid policy expiration date'
+      });
+      isValid = false;
+    }
+
+    return { isValid, results };
+  }
+
+  // Utility validation methods
+  private isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  private isValidPhone(phone: string): boolean {
+    return /^\+[1-9]\d{1,14}$/.test(phone);
+  }
+
+  private isValidZipCode(zipCode: string): boolean {
+    return /^\d{5}(-\d{4})?$/.test(zipCode);
+  }
+
+  private isValidState(state: string): boolean {
+    return /^[A-Z]{2}$/.test(state);
+  }
+
+  private isValidDate(date: string): boolean {
+    return !isNaN(Date.parse(date));
+  }
+}
+
+// Express route handlers
+export function setupValidationRoutes(app: express.Application, validationService: ValidationService) {
+  app.post('/validate', 
+    authenticateJWT,
+    singleValidationLimiter,
+    async (req: Request, res: Response) => {
+      try {
+        const { error } = validationRequestSchema.validate(req.body);
+        if (error) {
+          return res.status(400).json({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid request data',
+            details: error.details
+          });
+        }
+
+        const result = await validationService.validateLead(req.body);
+        res.header('X-Request-ID', req.body.requestId);
+        res.header('X-Response-Time', result.performance.processingTime.toString());
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error'
+        });
+      }
+    }
+  );
+
+  app.post('/validate/batch',
+    authenticateJWT,
+    batchValidationLimiter,
+    async (req: Request, res: Response) => {
+      try {
+        const { error } = batchValidationRequestSchema.validate(req.body);
+        if (error) {
+          return res.status(400).json({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid batch request data',
+            details: error.details
+          });
+        }
+
+        const result = await validationService.validateBatch(req.body);
+        res.header('X-Request-ID', req.body.batchId);
+        res.header('X-Response-Time', result.summary.processingTime.toString());
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error'
+        });
+      }
+    }
+  );
+}
+
+export { ValidationService };
