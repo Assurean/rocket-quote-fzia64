@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package insurance.scoring.v1;
+
+option go_package = "github.com/insurance/scoring/v1";
+
+// Import Google protobuf types
+// @version 3.0.0
+import "google/protobuf/timestamp.proto";
+// @version 3.0.0
+import "google/protobuf/wrappers.proto";
+// @version 3.0.0
+import "google/protobuf/duration.proto";
+
+// ContactInfo represents the essential contact details for a lead
+message ContactInfo {
+    string email = 1;
+    string phone = 2;
+    string zip_code = 3;
+}
+
+// VerticalData contains insurance vertical-specific attributes
+message VerticalData {
+    string vertical_type = 1;
+    map<string, string> attributes = 2;
+}
+
+// ScoringRequest represents a single lead scoring request
+message ScoringRequest {
+    string lead_id = 1;
+    string vertical = 2;
+    ContactInfo contact_info = 3;
+    VerticalData vertical_data = 4;
+    google.protobuf.Timestamp request_time = 5;
+}
+
+// ScoringResponse contains the scoring results for a single lead
+message ScoringResponse {
+    string lead_id = 1;
+    double quality_score = 2;
+    double suggested_price = 3;
+    map<string, double> score_factors = 4;
+    google.protobuf.Timestamp scoring_time = 5;
+}
+
+// BatchScoringRequest enables efficient processing of multiple leads
+message BatchScoringRequest {
+    repeated ScoringRequest requests = 1;
+    google.protobuf.Timestamp batch_time = 2;
+}
+
+// BatchScoringResponse provides aggregated results for batch processing
+message BatchScoringResponse {
+    repeated ScoringResponse results = 1;
+    int32 total_processed = 2;
+    int32 failed_count = 3;
+    google.protobuf.Duration processing_time = 4;
+}
+
+// ScoringService provides real-time lead quality assessment and pricing
+service ScoringService {
+    // ScoreLead evaluates a single lead in real-time (<500ms SLA)
+    rpc ScoreLead(ScoringRequest) returns (ScoringResponse) {}
+    
+    // BatchScoreLeads processes multiple leads efficiently (max 1000 per batch)
+    rpc BatchScoreLeads(BatchScoringRequest) returns (BatchScoringResponse) {}
+}
