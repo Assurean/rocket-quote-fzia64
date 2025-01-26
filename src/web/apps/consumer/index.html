@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1976D2">
+    <meta name="description" content="Compare and save on insurance quotes across Auto, Home, Life, Health, and more. Get personalized rates from top carriers instantly.">
+
+    <!-- Security headers -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.insureleads.com">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+
+    <!-- Preconnect to critical domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- PWA support -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Performance optimizations -->
+    <link rel="preload" href="/src/main.tsx" as="script" type="module">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap">
+
+    <title>Insurance Quote Comparison | InsureLeads</title>
+  </head>
+  <body>
+    <!-- Application root with accessibility attributes -->
+    <div 
+      id="root"
+      role="main"
+      aria-live="polite"
+    ></div>
+
+    <!-- Fallback for no JavaScript -->
+    <noscript>
+      <div style="padding: 20px; text-align: center;">
+        <h1>JavaScript Required</h1>
+        <p>Please enable JavaScript to use this insurance quote comparison tool.</p>
+        <p>For assistance, call us at 1-800-INSURE-NOW.</p>
+      </div>
+    </noscript>
+
+    <!-- Error boundary fallback -->
+    <div id="error-root" style="display: none;">
+      <div style="padding: 20px; text-align: center;">
+        <h2>Something went wrong</h2>
+        <p>We're working to fix the issue. Please try refreshing the page.</p>
+        <button onclick="window.location.reload()">Refresh Page</button>
+      </div>
+    </div>
+
+    <!-- Load application with performance optimization -->
+    <script type="module" src="/src/main.tsx" async></script>
+
+    <!-- Offline support notification -->
+    <div 
+      id="offline-notification"
+      role="alert"
+      aria-live="assertive"
+      style="display: none; position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 16px; border-radius: 4px;"
+    >
+      You are currently offline. Some features may be limited.
+    </div>
+  </body>
+</html>
