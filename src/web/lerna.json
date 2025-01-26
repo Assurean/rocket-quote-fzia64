@@ -1,0 +1,28 @@
+{
+  "version": "1.0.0",
+  "npmClient": "npm",
+  "useWorkspaces": true,
+  "packages": [
+    "apps/*",
+    "packages/*"
+  ],
+  "command": {
+    "publish": {
+      "conventionalCommits": true,
+      "message": "chore(release): publish %s",
+      "registry": "https://registry.npmjs.org"
+    },
+    "version": {
+      "conventionalCommits": true,
+      "message": "chore(release): version %s",
+      "allowBranch": [
+        "main",
+        "develop"
+      ],
+      "ignoreChanges": [
+        "**/*.md",
+        "**/__tests__/**"
+      ]
+    }
+  }
+}
