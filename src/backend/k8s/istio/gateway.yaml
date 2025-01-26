@@ -1,0 +1,149 @@
+# Istio Gateway Configuration v1.19+
+# Purpose: External traffic entry point for insurance platform service mesh
+# Handles TLS termination, protocol selection, and high-availability routing
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: insurance-platform-gateway
+  namespace: default
+  labels:
+    app: insurance-platform
+    component: gateway
+    environment: production
+    managed-by: istio
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "15020"
+    prometheus.io/path: "/stats/prometheus"
+    # Security policy annotations
+    security.istio.io/tlsMode: "strict"
+    networking.istio.io/exportTo: "*"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/renewal-before-expiry: "720h"
+    # High availability annotations
+    topology.istio.io/redundancy: "zone"
+    sidecar.istio.io/proxyCPU: "1000m"
+    sidecar.istio.io/proxyMemory: "1Gi"
+
+spec:
+  selector:
+    istio: ingressgateway
+    topology.istio.io/network: network1
+  
+  servers:
+    # HTTPS Server Configuration
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        - "api.insurance-platform.com"
+      tls:
+        mode: SIMPLE
+        credentialName: api-tls-cert
+        minProtocolVersion: TLSV1_2
+        # Modern cipher suite configuration for enhanced security
+        cipherSuites:
+          - ECDHE-ECDSA-AES128-GCM-SHA256
+          - ECDHE-RSA-AES128-GCM-SHA256
+          - ECDHE-ECDSA-AES256-GCM-SHA384
+          - ECDHE-RSA-AES256-GCM-SHA384
+    
+    # HTTP Server Configuration (with HTTPS redirect)
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "api.insurance-platform.com"
+      tls:
+        httpsRedirect: true # Force HTTPS for all traffic
+
+---
+# Gateway Policy Configuration
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: insurance-platform-gateway-policy
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: insurance-platform
+      istio: ingressgateway
+  rules:
+    - from:
+        - source:
+            requestPrincipals: ["*"]
+    - to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE"]
+            paths: ["/*"]
+    when:
+      - key: request.auth.claims[iss]
+        values: ["https://auth.insurance-platform.com"]
+
+---
+# Rate Limiting Configuration
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: insurance-platform-ratelimit
+  namespace: default
+spec:
+  workloadSelector:
+    labels:
+      istio: ingressgateway
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: "envoy.filters.network.http_connection_manager"
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.ratelimit
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
+            domain: insurance-platform
+            rate_limit_service:
+              grpc_service:
+                envoy_grpc:
+                  cluster_name: rate_limit_cluster
+            timeout: 0.25s
+            failure_mode_deny: false
+            rate_limited_status:
+              code: 429
+            descriptors:
+              - entries:
+                  - key: generic_key
+                    value: default
+                rate_limit:
+                  unit: MINUTE
+                  requests_per_unit: 10000 # Support 10,000+ concurrent users
+
+---
+# Monitoring Configuration
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: insurance-platform-gateway-monitor
+  namespace: default
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  endpoints:
+    - port: http-monitoring
+      path: /stats/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: 'istio_requests_total|istio_request_duration_milliseconds.*|istio_response_bytes.*'
+          action: keep
