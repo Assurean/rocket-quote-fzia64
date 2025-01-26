@@ -1,0 +1,41 @@
+{
+  "version": "7.1.4",
+  "npmClient": "npm",
+  "useWorkspaces": true,
+  "packages": [
+    "services/*"
+  ],
+  "command": {
+    "publish": {
+      "conventionalCommits": true,
+      "message": "chore(release): publish",
+      "allowBranch": [
+        "main",
+        "release/*"
+      ],
+      "registry": "https://registry.npmjs.org/",
+      "ignoreChanges": [
+        "**/*.md",
+        "**/*.test.ts",
+        "**/*.spec.ts"
+      ]
+    },
+    "version": {
+      "conventionalCommits": true,
+      "message": "chore(release): version bump",
+      "changelogPreset": "angular",
+      "createRelease": "github",
+      "push": true
+    },
+    "bootstrap": {
+      "hoist": true,
+      "npmClientArgs": [
+        "--no-package-lock",
+        "--no-audit",
+        "--no-fund"
+      ],
+      "forceLocal": true,
+      "ci": true
+    }
+  }
+}
