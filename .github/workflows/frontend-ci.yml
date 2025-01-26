@@ -1,0 +1,202 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['src/web/**']
+  pull_request:
+    branches: [main, develop]
+    paths: ['src/web/**']
+
+env:
+  NODE_VERSION: '20.x'
+  COVERAGE_THRESHOLD: '80'
+  TEST_PARALLEL: 'true'
+  MAX_WORKERS: '4'
+
+jobs:
+  build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules/.cache
+            src/web/node_modules
+            src/web/packages/*/node_modules
+            src/web/apps/*/node_modules
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+            npm-
+
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build packages
+        working-directory: src/web
+        run: npm run build
+
+      - name: TypeScript compilation
+        working-directory: src/web
+        run: npx tsc --noEmit
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: |
+            src/web/packages/*/dist
+            src/web/apps/*/dist
+          retention-days: 1
+
+  test:
+    name: Run Tests
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run tests
+        working-directory: src/web
+        run: |
+          npm run test -- \
+            --coverage \
+            --maxWorkers=${{ env.MAX_WORKERS }} \
+            --shard=${{ matrix.shard }}/${{ strategy.matrix.shard-total }}
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: src/web/coverage
+          flags: frontend,unit-tests
+          fail_ci_if_error: true
+          verbose: true
+
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache ESLint
+        uses: actions/cache@v3
+        with:
+          path: |
+            .eslintcache
+            node_modules/.cache/eslint
+          key: eslint-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            eslint-${{ runner.os }}-
+
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run ESLint
+        working-directory: src/web
+        run: |
+          npm run lint -- \
+            --cache \
+            --cache-location .eslintcache \
+            --max-warnings 0 \
+            --format stylish
+
+      - name: Run Prettier check
+        working-directory: src/web
+        run: npx prettier --check .
+
+  e2e:
+    name: E2E Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run Cypress tests
+        working-directory: src/web
+        run: |
+          npx cypress run \
+            --browser chrome \
+            --headless \
+            --record \
+            --parallel \
+            --group "Frontend E2E"
+        env:
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run npm audit
+        working-directory: src/web
+        run: npm audit --production --audit-level=high
+
+      - name: Run Snyk scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
