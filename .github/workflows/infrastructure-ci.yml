@@ -1,0 +1,221 @@
+name: Infrastructure CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  security-events: write
+
+env:
+  TF_VERSION: '1.5.0'
+  AWS_REGION: 'us-east-1'
+  COST_THRESHOLD: '100'
+  SECURITY_SCAN_LEVEL: 'HIGH'
+  TF_LOG: 'DEBUG'
+  TF_STATE_BUCKET: 'insurance-platform-tfstate'
+  TF_LOCK_TABLE: 'insurance-platform-tflock'
+  HEALTH_CHECK_TIMEOUT: '300'
+
+jobs:
+  validate:
+    name: Validate Infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive -diff infrastructure/
+
+      - name: Run tfsec Security Scan
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: infrastructure/terraform
+          soft_fail: false
+          format: sarif
+          additional_args: --minimum-severity ${{ env.SECURITY_SCAN_LEVEL }}
+
+      - name: Run Checkov Compliance Scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infrastructure/terraform
+          framework: terraform
+          output_format: sarif
+          soft_fail: false
+
+  plan:
+    name: Plan Infrastructure Changes
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [development, staging]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-infrastructure
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: 3600
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Initialize Terraform
+        working-directory: infrastructure/terraform/environments/${{ matrix.environment }}
+        run: |
+          source ../../scripts/init-terraform.sh
+          check_prerequisites
+          init_backend "${{ matrix.environment }}"
+          init_terraform "${{ matrix.environment }}"
+
+      - name: Validate Environment Configuration
+        working-directory: infrastructure/terraform/environments/${{ matrix.environment }}
+        run: |
+          source ../../scripts/apply-terraform.sh
+          validate_environment "${{ matrix.environment }}"
+
+      - name: Generate Terraform Plan
+        working-directory: infrastructure/terraform/environments/${{ matrix.environment }}
+        run: |
+          source ../../scripts/apply-terraform.sh
+          plan_file=$(plan_changes "${{ matrix.environment }}")
+          echo "PLAN_FILE=$plan_file" >> $GITHUB_ENV
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: infrastructure/terraform/environments/${{ matrix.environment }}/${{ env.PLAN_FILE }}
+          retention-days: 1
+
+  deploy:
+    name: Deploy Infrastructure
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [development]
+    environment:
+      name: ${{ matrix.environment }}
+      url: https://console.aws.amazon.com/eks/home?region=${{ env.AWS_REGION }}#/clusters/${{ matrix.environment }}-insurance-platform
+    concurrency:
+      group: deploy-${{ matrix.environment }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-infrastructure
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: 3600
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: infrastructure/terraform/environments/${{ matrix.environment }}
+
+      - name: Apply Infrastructure Changes
+        working-directory: infrastructure/terraform/environments/${{ matrix.environment }}
+        run: |
+          source ../../scripts/apply-terraform.sh
+          apply_changes "${{ matrix.environment }}" "$PLAN_FILE"
+
+      - name: Verify Deployment
+        working-directory: infrastructure/terraform/environments/${{ matrix.environment }}
+        run: |
+          aws eks describe-cluster \
+            --name "${{ matrix.environment }}-insurance-platform" \
+            --query 'cluster.status' \
+            --output text | grep -q ACTIVE
+
+  staging-approval:
+    name: Approve Staging Deployment
+    needs: plan
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Manual Approval Check
+        run: |
+          echo "Staging deployment approved"
+
+  staging-deploy:
+    name: Deploy to Staging
+    needs: staging-approval
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://console.aws.amazon.com/eks/home?region=${{ env.AWS_REGION }}#/clusters/staging-insurance-platform
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-infrastructure
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: 3600
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: tfplan-staging
+          path: infrastructure/terraform/environments/staging
+
+      - name: Apply Infrastructure Changes
+        working-directory: infrastructure/terraform/environments/staging
+        run: |
+          source ../../scripts/apply-terraform.sh
+          apply_changes "staging" "$PLAN_FILE"
+
+      - name: Verify Deployment
+        working-directory: infrastructure/terraform/environments/staging
+        run: |
+          aws eks describe-cluster \
+            --name "staging-insurance-platform" \
+            --query 'cluster.status' \
+            --output text | grep -q ACTIVE
